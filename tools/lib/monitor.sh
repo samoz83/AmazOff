@@ -11,6 +11,13 @@ monitor_loop() {
 
   log "monitor running pid=$$ log=$NGINX_ACCESS_LOG re=$TRIGGER_RE"
 
+  # Other hosts managers (e.g. Glasshouse's bind-mounted table) replace /etc/hosts; put our entry back.
+  (
+    while sleep 10 && pid_alive "$$" && [ -f "$MON_PID" ]; do
+      hosts_patched || { patch_hosts >/dev/null; log "Re-applied hosts override"; }
+    done
+  ) &
+
   # -n 0 ignores existing lines at start.
   ( tail -n 0 -F "$NGINX_ACCESS_LOG" 2>/dev/null || tail -n 0 -f "$NGINX_ACCESS_LOG" ) |
   while IFS= read -r line; do
@@ -40,6 +47,7 @@ monitor_start() {
 
   daemonize "$LOG_MON" sh -c '
     . "'"$SCRIPTS_DIR/common.sh"'"
+    . "'"$SCRIPTS_DIR/patch.sh"'"
     . "'"$SCRIPTS_DIR/monitor.sh"'"
     monitor_loop
   '
