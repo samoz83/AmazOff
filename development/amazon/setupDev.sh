@@ -1,23 +1,17 @@
 #!/bin/sh
+# Download each distinct upstream player bundle and generate its no-ads patch.
+# wave1..wave3 currently serve the same bundle, so wave1 is built for all wave routes.
+# onebox2 (older 2.7MB player) is not routed by nginx and is not patched.
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
-SOURCE_URL="${AMAZOFF_PLAYER_URL:-https://cloudfront.xp-assets.aiv-cdn.net/family/lg/ATVUnfPlayerBundle-1.0/onebox1/js/ATVUnfPlayerBundle.js}"
-EXPECTED_SOURCE_SHA256="${AMAZOFF_EXPECTED_SOURCE_SHA256:-962b4c04af687d98b59ed902c6bb2985064a8a7709d029283205b77e7121327e}"
-SOURCE_FILE="${1:-ATVUnfPlayerBundle.orig.js}"
+BASE_URL="https://cloudfront.xp-assets.aiv-cdn.net/family/lg/ATVUnfPlayerBundle-1.0"
+WORK_DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/amazoff-upstream.XXXXXX")}"
 
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$SOURCE_URL" -o "$SOURCE_FILE"
-else
-  wget -q -O "$SOURCE_FILE" "$SOURCE_URL"
-fi
-
-node "$ROOT_DIR/development/amazon/build-patch.js" \
-  --source "$SOURCE_FILE" \
-  --source-url "$SOURCE_URL" \
-  --expected-source-sha "$EXPECTED_SOURCE_SHA256" \
-  --output "$ROOT_DIR/resources/amazon/patch/ATVUnfPlayerBundle.js" \
-  --manifest "$ROOT_DIR/resources/amazon/patch/manifest.json" \
-  --identity "$ROOT_DIR/resources/amazon/patch/identity.conf"
-
-echo "Validated and generated AmazOff player patch."
+for route in onebox1 wave1; do
+  url="$BASE_URL/$route/js/ATVUnfPlayerBundle.js"
+  curl -fsSL "$url" -o "$WORK_DIR/$route.js"
+  node "$ROOT_DIR/development/amazon/build-patch.js" \
+    --source "$WORK_DIR/$route.js" --source-url "$url" --route "$route" \
+    --out-dir "$ROOT_DIR/resources/amazon/patch/$route"
+done

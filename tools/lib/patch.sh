@@ -100,28 +100,29 @@ unpatch_hosts_helper() {
 }
 
 manifest_field() {
-  field="$1"
-  [ -f "$PATCH_MANIFEST" ] || return 1
-  sed -n "s/.*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$PATCH_MANIFEST" | head -n 1
+  sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -n 1
 }
 
-validate_patch_bundle() {
-  [ -f "$PATCH_MANIFEST" ] || die "Patch manifest missing: $PATCH_MANIFEST"
-
-  expected="$(manifest_field sourceSha256 || true)"
-  source_url="$(manifest_field sourceUrl || true)"
-  [ -n "$expected" ] || die "Patch manifest has no source hash"
-  [ -n "$source_url" ] || die "Patch manifest has no source URL"
-
-  upstream_tmp="$BASE/upstream-bundle.$$"
-  rm -f "$upstream_tmp"
-  if ! wget -q -O "$upstream_tmp" "$source_url"; then
-    wget -q --no-check-certificate -O "$upstream_tmp" "$source_url" || die "Could not retrieve upstream player bundle"
-  fi
-  actual="$(sha256sum "$upstream_tmp" | awk '{print $1}')"
-  rm -f "$upstream_tmp"
-  [ "$actual" = "$expected" ] || die "Unsupported upstream player bundle: expected $expected, got $actual"
-  log "Validated upstream player bundle sha256=$actual"
+# Warn, never fail: a newer upstream bundle only means our patched copy is older.
+check_upstream_bundles() {
+  for m in "$PATCHER_RESOURCES_DIR"/patch/*/manifest.json; do
+    [ -f "$m" ] || continue
+    expected="$(manifest_field "$m" sourceSha256)"
+    url="$(manifest_field "$m" sourceUrl)"
+    tmp="$BASE/upstream-bundle.$$"
+    if wget -q -T 10 -O "$tmp" "$url" 2>/dev/null; then
+      actual="$(sha256sum "$tmp" | awk '{print $1}')"
+      if [ "$actual" = "$expected" ]; then
+        log "Upstream bundle unchanged: $url"
+      else
+        log "WARNING: upstream bundle changed ($actual), serving patch built from $expected: $url"
+        toast "AmazOff: Amazon player updated, patch may be outdated"
+      fi
+    else
+      log "WARNING: could not fetch $url to check for updates"
+    fi
+    rm -f "$tmp"
+  done
 }
 
 unpatch_hosts_if_present() {
@@ -132,9 +133,9 @@ unpatch_hosts_if_present() {
 
 do_patch() {
   require_root
-  # Validate against the real upstream, not our own override from a previous start
+  # Check the real upstream, not our own override from a previous start
   unpatch_hosts_if_present
-  validate_patch_bundle
+  check_upstream_bundles
   log "patching target=$TARGET_DIR"
   patch_default_conf
   patch_cert_pin
@@ -199,13 +200,9 @@ patch_status_log() {
   log "---- PATCH INFO ----"
   log "targetAppName: $TARGET_APP_NAME"
   log "targetAppDir: $TARGET_DIR"
-  if [ -f "$PATCH_MANIFEST" ]; then
-    log "sourceSha256: $(manifest_field sourceSha256)"
-    log "patchedSha256: $(manifest_field patchedSha256)"
-    log "sourceUrl: $(manifest_field sourceUrl)"
-  else
-    log "patch manifest: missing"
-  fi
+  for m in "$PATCHER_RESOURCES_DIR"/patch/*/manifest.json; do
+    [ -f "$m" ] && log "$(manifest_field "$m" route): source $(manifest_field "$m" sourceSha256) patched $(manifest_field "$m" patchedSha256)"
+  done
   if [ -f "$CERT_DIR/$CERT_NAME" ]; then
     log "CA in place"
   else

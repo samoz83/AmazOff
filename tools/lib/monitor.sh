@@ -14,6 +14,10 @@ monitor_loop() {
   # -n 0 ignores existing lines at start.
   ( tail -n 0 -F "$NGINX_ACCESS_LOG" 2>/dev/null || tail -n 0 -f "$NGINX_ACCESS_LOG" ) |
   while IFS= read -r line; do
+    if echo "$line" | grep -qE 'ATVUnfPlayerBundle\.js[^"]*" 404 '; then
+      toast "AmazOff: unknown player route, see Details"
+      log "Unrouted player bundle request: $line"
+    fi
     echo "$line" | grep -qE "$TRIGGER_RE" || continue
     toast "AmazOff loaded"
     log "AmazOff toast triggered"
