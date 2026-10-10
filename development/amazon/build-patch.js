@@ -78,6 +78,21 @@ patch(
   'case"Remote":if(__HOMEBREW_NOADS)break;'
 );
 
+// Telemetry: no-op the analytics sinks only. Every one is fire-and-forget (callers
+// ignore the result). Session reporting (UpdateStream, PES sessions, bookmarks) and
+// licence calls are deliberately untouched: resume and playback depend on them.
+const noop = (label, expression, expected = 1) => patch(label, expression, "$1return;", expected);
+// Media events (QoS, errors, custom metadata/metrics): HTTP and TelemetrySdk reporters.
+noop("media events", /(\.prototype\.enqueueMediaEvents=freeOnUnref\(function\(e\)\{)(?=this\.applyDeferredEventTimestamp\(e\))/, 2);
+noop("telemetry queue", /(\.prototype\.reportEvent=freeOnUnref\(function\(e\)\{var t=this;)(?=this\.queue\.add\(e\),this\.isQueueAtMaxDepth\(\))/);
+noop("minerva metrics", /(\.prototype\.recordMetric=freeOnUnref\(function\(e\)\{)(?=if\(null!=this\.minervaClient\)try\{this\.minervaClient\.record\(e\))/);
+noop("minerva kpi upload", /(\.prototype\.uploadMinervaKpiMetrics=freeOnUnref\(function\(\)\{)/);
+noop("client log upload", /(\.prototype\.write=freeOnUnref\(function\(e,t\)\{)(?=if\(!\(e<this\.logLevel\)\)\{var n=this\.toLogLine\()/);
+noop("playback diagnostics", /(\.prototype\.batchMessage=freeOnUnref\(function\(e,t\)\{)(?=1e3<=this\.batchedMessages\.length)/);
+// Ad beacons: should never fire once ads are filtered; belt and braces.
+patch("ad beacons", /(\.prototype\.send=freeOnUnref\(function\(e,t,n\)\{if\(void 0===t&&\(t=\{\}\),)this\.enableEventReporting(?=\)\{for\(var r=0)/, "$1!1");
+noop("ad audit pings", /(\.prototype\.make(?:Direct)?AuditPingRequest=freeOnUnref\(function\([\w$]+,[\w$]+\)\{)/, 2);
+
 new Function(source); // syntax check
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "ATVUnfPlayerBundle.js"), source);

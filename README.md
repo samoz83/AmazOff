@@ -8,7 +8,7 @@
 
 **AmazOff** is an IPK application for **rooted LG webOS TVs**. It extends the Amazon Prime Video Player with following patches applied:
 - Remove Ads (Pre-, Mid- and Endrolls)
-- Suppress telemetry
+- Suppress player telemetry (analytics, metrics, log uploads and ad beacons; resume position and playback session reporting are left intact)
 
 As a result, all launch paths—including the **remote control’s dedicated Amazon button**—will open the modified version.
 
