@@ -97,45 +97,20 @@ unpatch_hosts_helper() {
   tmp="/tmp/hosts.tmp.$$"
   awk -v l4="$HOST_ENTRY" -v l6="$HOST_ENTRY_V6" '$0 != l4 && $0 != l6 { print }' "$f" >"$tmp" || die "write tmp failed: $tmp"
   cat "$tmp" > "$f" || { rm -f "$tmp"; die "replace failed: $f"; }
+  rm -f "$tmp"
 }
 
 manifest_field() {
   sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -n 1
 }
 
-# Warn, never fail: a newer upstream bundle only means our patched copy is older.
-check_upstream_bundles() {
-  for m in "$PATCHER_RESOURCES_DIR"/patch/*/manifest.json; do
-    [ -f "$m" ] || continue
-    expected="$(manifest_field "$m" sourceSha256)"
-    url="$(manifest_field "$m" sourceUrl)"
-    tmp="$BASE/upstream-bundle.$$"
-    if wget -q -T 10 -O "$tmp" "$url" 2>/dev/null; then
-      actual="$(sha256sum "$tmp" | awk '{print $1}')"
-      if [ "$actual" = "$expected" ]; then
-        log "Upstream bundle unchanged: $url"
-      else
-        log "WARNING: upstream bundle changed ($actual), serving patch built from $expected: $url"
-        toast "AmazOff: Amazon player updated, patch may be outdated"
-      fi
-    else
-      log "WARNING: could not fetch $url to check for updates"
-    fi
-    rm -f "$tmp"
-  done
-}
-
-unpatch_hosts_if_present() {
-  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL"; do
-    [ -f "$f" ] && unpatch_hosts_helper "$f"
-  done
+# Another hosts manager (e.g. an ad blackhole tool) can rewrite these files and drop our entry.
+hosts_patched() {
+  grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null && grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null
 }
 
 do_patch() {
   require_root
-  # Check the real upstream, not our own override from a previous start
-  unpatch_hosts_if_present
-  check_upstream_bundles
   log "patching target=$TARGET_DIR"
   patch_default_conf
   patch_cert_pin
@@ -208,6 +183,7 @@ patch_status_log() {
   else
     log "CA not found"
   fi
+  hosts_patched || log "WARNING: hosts override missing; another tool may have rewritten hosts. Press Start again."
   log "--------"
   log "$HOSTS_SYSTEM:
 $(cat $HOSTS_SYSTEM)"

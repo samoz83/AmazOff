@@ -18,7 +18,7 @@ setServiceState(){
       SERVICESTATE="stopped"
     fi
   else
-    if monitor_running && netshim_running; then
+    if monitor_running && netshim_running && hosts_patched; then
       SERVICESTATE="running"
     elif [ "${1:-}" = "start" ]; then
       SERVICESTATE="error"
@@ -51,7 +51,7 @@ case "$1" in
       do_patch
       netshim_start_nginx
       monitor_start
-      if monitor_running && netshim_running; then
+      if monitor_running && netshim_running && hosts_patched; then
         log "Start successful"
       else
         log "Start failed"
@@ -67,6 +67,7 @@ case "$1" in
       monitor_stop
       netshim_stop_nginx
       netshim_stop_mitm
+      unpatch_hosts
       log "Stop successful"
     fi
     ;;
@@ -125,6 +126,7 @@ if [ "$SERVICESTATE" = "error" ];then
     monitor_stop
     netshim_stop_nginx
     netshim_stop_mitm
+    unpatch_hosts
   fi
 fi
 exit 0
