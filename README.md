@@ -2,7 +2,26 @@
 
 > Patch-based customization layer for the stock Amazon app on rooted LG webOS TVs.
 
+> [!NOTE]
+> This is an updated fork of [azoffshowy/AmazOff](https://github.com/azoffshowy/AmazOff). It tracks Amazon's current player bundle and adds the fixes listed under [What's new in this fork](#whats-new-in-this-fork).
+
 ![Screenshot](./Screenshot.png?raw=true)
+
+## What's new in this fork
+
+Version 0.2.5, compared with upstream 0.2.3:
+
+**Supported**
+- Amazon's current player bundle (October 2026), which `onebox1` and `wave1`-`wave3` now all serve. The no-ads patch is built per route and checked by hash.
+- Prime Video app 6.3.42, including blocking its pre-rolls.
+- [Glasshouse](https://github.com/rorygallagher2024/glasshouse) 0.100 or later with its ad blocker on. Glasshouse keeps AmazOff's hosts entry in its table.
+
+**Fixed**
+- AmazOff now uses its own CA, which is only valid for the player bundle host. The goproxy CA used up to 0.2.3 has a public private key; Start removes it from the Amazon app.
+- If another tool rewrites `/etc/hosts`, the monitor puts AmazOff's entry back, and the service shows *stopped* while the entry is missing.
+- Stop removes the hosts entry, including from the rootfs `/etc/hosts` underneath a bind-mounted table. Before, Glasshouse could copy a stale entry back at boot and break Prime Video after AmazOff was switched off.
+- A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
+- Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 
 ## Overview
 
@@ -55,6 +74,6 @@ Within the folder **development** you can find the applied patches to the player
 
 ## Updating the Amazon player bundle
 
-The player JavaScript is served by Amazon and changes independently of the installed IPK. Amazon serves a different bundle per route (`onebox1` for webOS 4.x, `wave1`-`wave3` for newer webOS). Run `development/amazon/setupDev.sh` to download each bundle, apply the structural no-ads transform (`build-patch.js`, which fails if any anchor is missing), and write `resources/amazon/patch/<route>/` with the patched bundle, `manifest.json` and nginx `identity.conf`. `development/amazon/prepareRelease.sh` re-checks the hashes, and you can point it at an unpacked IPK.
+The player JavaScript is served by Amazon and changes independently of the installed IPK. Amazon serves a different bundle per route (`onebox1` for webOS 4.x, `wave1`-`wave3` for newer webOS; as of October 2026 they all serve the same bundle). Run `development/amazon/setupDev.sh` to download each bundle, apply the structural no-ads transform (`build-patch.js`, which fails if any anchor is missing), and write `resources/amazon/patch/<route>/` with the patched bundle, `manifest.json` and nginx `identity.conf`. `development/amazon/prepareRelease.sh` re-checks the hashes, and you can point it at an unpacked IPK.
 
-The service reports *running* only while nginx, the monitor and the hosts override are all in place, so a hosts file rewritten by another tool shows up as *stopped*. A request for an unknown route shows a toast, and the request appears in **Details**. On webOS 6.5, restart the TV after the first Start so the cached player bundle is discarded.
+The service reports *running* only while nginx, the monitor and the hosts override are all in place, so a hosts file rewritten by another tool shows up as *stopped*. Another entry for the bundle host (such as a blocklist sinkhole) shows a toast and a warning in **Details**. A request for an unknown route shows a toast, and the request appears in **Details**. On webOS 6.5, restart the TV after the first Start so the cached player bundle is discarded.
