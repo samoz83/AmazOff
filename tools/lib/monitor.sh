@@ -11,10 +11,18 @@ monitor_loop() {
 
   log "monitor running pid=$$ log=$NGINX_ACCESS_LOG re=$TRIGGER_RE"
 
-  # Other hosts managers (e.g. Glasshouse's bind-mounted table) replace /etc/hosts; put our entry back.
+  # Other hosts managers (e.g. Glasshouse < 0.100's bind-mounted table) replace /etc/hosts; put our entry back.
   (
+    warned=""
     while sleep 10 && pid_alive "$$" && [ -f "$MON_PID" ]; do
       hosts_patched || { patch_hosts >/dev/null; log "Re-applied hosts override"; }
+      # Toast once per appearance, e.g. after a blocklist upload while running.
+      c="$(hosts_conflicts)"
+      if [ -n "$c" ] && [ "$c" != "$warned" ]; then
+        warn_hosts_conflicts
+        toast "AmazOff: blocked by another hosts entry, see Details"
+      fi
+      warned="$c"
     done
   ) &
 

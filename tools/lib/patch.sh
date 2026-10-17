@@ -74,8 +74,24 @@ patch_hosts(){
 unpatch_hosts(){
   unpatch_hosts_helper "$HOSTS_SYSTEM"
   log "Unpatched system hosts"
-  unpatch_hosts_helper "$HOSTS_JAIL" 
+  unpatch_hosts_helper "$HOSTS_JAIL"
   log "Unpatched jail hosts"
+  unpatch_rootfs_hosts
+}
+
+# Glasshouse >= 0.100 copies other tools' lines from the /etc/hosts underneath its
+# table into the table at boot, so an entry left in the rootfs file would come back.
+# ponytail: rootfs layer only; HBC's layer is /tmp/hosts and gone at reboot.
+unpatch_rootfs_hosts() {
+  grep -q ' /etc/hosts ' /proc/mounts 2>/dev/null || return 0
+  root="/tmp/amazoff-root.$$"
+  mkdir -p "$root" && mount --bind / "$root" 2>/dev/null || { rmdir "$root" 2>/dev/null; return 0; }
+  if grep -qxF -e "$HOST_ENTRY" -e "$HOST_ENTRY_V6" "$root/etc/hosts" 2>/dev/null; then
+    # Read-only rootfs (e.g. C4 on webOS 10.3.1) can't hold our entry anyway; don't let die abort Stop.
+    ( unpatch_hosts_helper "$root/etc/hosts" ) >/dev/null && log "Unpatched rootfs hosts"
+  fi
+  umount "$root" 2>/dev/null
+  rmdir "$root" 2>/dev/null
 }
 
 patch_hosts_helper() {
@@ -115,12 +131,33 @@ hosts_patched() {
   grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null && grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null
 }
 
+# Lines not ours that also map our host, e.g. a Glasshouse uploaded blocklist sinkholing it.
+# They precede our entry in the table, so they win and the player bundle never reaches nginx.
+hosts_conflicts() {
+  host="${HOST_ENTRY#* }"
+  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL"; do
+    [ -f "$f" ] || continue
+    awk -v h="$host" -v l4="$HOST_ENTRY" -v l6="$HOST_ENTRY_V6" '
+      $0 == l4 || $0 == l6 || $1 ~ /^#/ { next }
+      { for (i = 2; i <= NF && $i !~ /^#/; i++) if (tolower($i) == h) { print; next } }
+    ' "$f"
+  done | sort -u
+}
+
+warn_hosts_conflicts() {
+  c="$(hosts_conflicts)"
+  [ -n "$c" ] || return 1
+  log "WARNING: another hosts entry overrides AmazOff (remove it from your ad blocker's list):
+$c"
+}
+
 do_patch() {
   require_root
   log "patching target=$TARGET_DIR"
   patch_default_conf
   patch_cert_pin
   patch_hosts
+  warn_hosts_conflicts && toast "AmazOff: blocked by another hosts entry, see Details"
   log "Successfully patched"
 }
 
@@ -190,6 +227,7 @@ patch_status_log() {
     log "CA not found"
   fi
   hosts_patched || log "WARNING: hosts override missing; another tool may have rewritten hosts. Press Start again."
+  warn_hosts_conflicts
   log "--------"
   log "$HOSTS_SYSTEM:
 $(cat $HOSTS_SYSTEM)"
