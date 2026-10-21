@@ -18,7 +18,7 @@ setServiceState(){
       SERVICESTATE="stopped"
     fi
   else
-    if monitor_running && netshim_running && hosts_patched; then
+    if monitor_running && netshim_running && hosts_patched && cert_pinned; then
       SERVICESTATE="running"
     elif [ "${1:-}" = "start" ]; then
       SERVICESTATE="error"
@@ -51,7 +51,7 @@ case "$1" in
       do_patch
       netshim_start_nginx
       monitor_start
-      if monitor_running && netshim_running && hosts_patched; then
+      if monitor_running && netshim_running && hosts_patched && cert_pinned; then
         log "Start successful"
       else
         log "Start failed"
@@ -66,22 +66,9 @@ case "$1" in
       log "stopping network inject"
       monitor_stop
       netshim_stop_nginx
-      netshim_stop_mitm
       do_unpatch
       log "Stop successful"
     fi
-    ;;
-  debug)
-    : > "$LOG"
-    #broken on lovefilm
-    log "starting debug setup"
-    do_patch
-    patch_debug_conf
-    patch_debug_certs
-    netshim_start_nginx
-    netshim_start_mitm
-    monitor_start
-    log "Debug start successful"
     ;;
   patch)
     : > "$LOG"
@@ -111,7 +98,7 @@ case "$1" in
     fi
     ;;
   *)
-    echo "usage: patchctl.sh start|stop|debug|patch|unpatch|status" >> "$LOG"
+    echo "usage: patchctl.sh start|stop|patch|unpatch|status" >> "$LOG"
     exit 1
     ;;
 esac
@@ -125,7 +112,6 @@ if [ "$SERVICESTATE" = "error" ];then
     #recover partial start
     monitor_stop
     netshim_stop_nginx
-    netshim_stop_mitm
     do_unpatch
   fi
 fi

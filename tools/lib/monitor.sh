@@ -2,8 +2,6 @@
 MON_PID="$BASE/monitor.pid"
 TRIGGER_RE='ATVUnfPlayerBundle\.js.*200.*patch=[0-9a-f]+'   # only count verified patched responses
 
-pid_alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
-read_pidfile() { [ -f "$1" ] && cat "$1" 2>/dev/null; }
 
 monitor_loop() {
   LOG=$LOG_MON
@@ -13,9 +11,15 @@ monitor_loop() {
 
   # Other hosts managers (e.g. Glasshouse < 0.100's bind-mounted table) replace /etc/hosts; put our entry back.
   (
-    warned=""
+    warned=""; sum=""
     while sleep 10 && pid_alive "$$" && [ -f "$MON_PID" ]; do
       hosts_patched || { patch_hosts >/dev/null; log "Re-applied hosts override"; }
+      # Subshell: die would end this loop, e.g. mid app update when bin/certs is missing.
+      cert_pinned || { ( patch_default_conf; patch_cert_pin ) >/dev/null 2>&1 && log "Re-applied CA pin"; }
+      # awk over a big blocklist every 10s is real CPU on a TV; rescan only when hosts change.
+      # If cksum fails, s stays empty and we rescan every time.
+      s="$(cat "$HOSTS_SYSTEM" "$HOSTS_JAIL" 2>/dev/null | cksum)" && [ "$s" = "$sum" ] && continue
+      sum="$s"
       # Toast once per appearance, e.g. after a blocklist upload while running.
       c="$(hosts_conflicts)"
       if [ -n "$c" ] && [ "$c" != "$warned" ]; then
@@ -94,10 +98,5 @@ monitor_status_log() {
 
 
 monitor_running(){
-  p="$(read_pidfile "$MON_PID" || true)"
-  if pid_alive "$p"; then
-    return 0
-  else
-    return 1;
-  fi
+  pid_alive "$(read_pidfile "$MON_PID")"
 }

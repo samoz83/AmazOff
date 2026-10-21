@@ -119,7 +119,11 @@ function triggerScriptCommand(command, loadingMessage, timeout)
       //service: enum [running, stopped, error]
       //logs: string (base64)
     console.log("on response:",response);
-    if(!response || !response.returnValue || !response.stdoutString)
+    response = response || {};
+    var responseState = null;
+    // Non-JSON stdout (e.g. a shell die) must reach the error branch, or the spinner never closes.
+    try { responseState = JSON.parse(response.stdoutString).state; } catch (e) {}
+    if(!response.returnValue || !responseState)
     {
       //Unkown state
       state.valid = false;
@@ -129,11 +133,10 @@ function triggerScriptCommand(command, loadingMessage, timeout)
       if(response.stdoutString)
         $("log").innerHTML += response.stdoutString;
     }else{
-      responseState = JSON.parse(response.stdoutString);
       state.valid = true;
-      state.service = responseState.state.service;
-      state.autostart = responseState.state.autostart;
-      $("log").innerHTML = atob(responseState.state.logs);
+      state.service = responseState.service;
+      state.autostart = responseState.autostart;
+      $("log").innerHTML = atob(responseState.logs);
     }
     setLoading(false);
     render();    
@@ -150,9 +153,10 @@ function boot() {
 function toggleService() {
   if(state.service === "running")
   {
-    triggerScriptCommand("stop", "Stopping service...");
+    triggerScriptCommand("stop", "Stopping service...", 10000);
   }else{
-    triggerScriptCommand("start", "Starting service...");
+    // start waits up to 2s each for nginx and the monitor; slow TVs pass 5s
+    triggerScriptCommand("start", "Starting service...", 10000);
   }
 }
 

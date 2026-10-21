@@ -44,18 +44,6 @@ patch_default_conf(){
   cat "$CONFIGS_DIR/default_config.json" > "$TARGET_DIR/default_config.json"
 }
 
-patch_debug_conf(){
-  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null
-  cat "$CONFIGS_DIR/default_config_debug.json" > "$TARGET_DIR/default_config.json"
-  log "Patched Debug config"
-  mkdir -m 777 -p "$TARGET_DIR/logs" 2>/dev/null || true
-}
-
-patch_debug_certs(){
-  cp -r "$TOOLS_DIR/mitm/certcache" "$LOGS_BASE_DIR" 2>/dev/null || true
-  log "Preload certs"
-}
-
 patch_hosts(){
   patch_hosts_helper "$HOSTS_SYSTEM"
   log "Patched system hosts"
@@ -76,8 +64,8 @@ unpatch_hosts(){
 # ponytail: rootfs layer only; HBC's layer is /tmp/hosts and gone at reboot.
 unpatch_rootfs_hosts() {
   grep -q ' /etc/hosts ' /proc/mounts 2>/dev/null || return 0
-  root="/tmp/amazoff-root.$$"
-  mkdir -p "$root" && mount --bind / "$root" 2>/dev/null || { rmdir "$root" 2>/dev/null; return 0; }
+  root="$(mktemp -d)" || return 0
+  mount --bind / "$root" 2>/dev/null || { rmdir "$root"; return 0; }
   if grep -qxF -e "$HOST_ENTRY" -e "$HOST_ENTRY_V6" "$root/etc/hosts" 2>/dev/null; then
     # Read-only rootfs (e.g. C4 on webOS 10.3.1) can't hold our entry anyway; don't let die abort Stop.
     ( unpatch_hosts_helper "$root/etc/hosts" ) >/dev/null && log "Unpatched rootfs hosts"
@@ -108,7 +96,7 @@ unpatch_hosts_helper() {
   f="$1"
   [ -f "$f" ] || die "hosts missing: $f"
 
-  tmp="/tmp/hosts.tmp.$$"
+  tmp="$(mktemp)" || die "mktemp failed"
   awk -v l4="$HOST_ENTRY" -v l6="$HOST_ENTRY_V6" '$0 != l4 && $0 != l6 { print }' "$f" >"$tmp" || die "write tmp failed: $tmp"
   cat "$tmp" > "$f" || { rm -f "$tmp"; die "replace failed: $f"; }
   rm -f "$tmp"
@@ -116,6 +104,11 @@ unpatch_hosts_helper() {
 
 manifest_field() {
   sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -n 1
+}
+
+# An Amazon app update replaces bin/certs; without the pin, TLS to nginx fails.
+cert_pinned() {
+  [ -f "$TARGET_CERT_DIR/$CERT_NAME" ]
 }
 
 # Another hosts manager (e.g. an ad blackhole tool) can rewrite these files and drop our entry.
@@ -215,10 +208,8 @@ patch_status_log() {
   for m in "$PATCHER_RESOURCES_DIR"/patch/*/manifest.json; do
     [ -f "$m" ] && log "$(manifest_field "$m" route): source $(manifest_field "$m" sourceSha256) patched $(manifest_field "$m" patchedSha256)"
   done
-  if [ -f "$CERT_DIR/$CERT_NAME" ]; then
-    log "CA in place"
-  else
-    log "CA not found"
+  if [ "$TARGET_APP_NAME" = "$APP_NAME_AMAZON" ]; then
+    cert_pinned && log "CA in place" || log "WARNING: CA missing from the Amazon app (app updated?). Press Start again."
   fi
   hosts_patched || log "WARNING: hosts override missing; another tool may have rewritten hosts. Press Start again."
   warn_hosts_conflicts
