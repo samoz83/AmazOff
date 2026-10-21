@@ -205,7 +205,9 @@ do_unpatch() {
   log "removed Cert pinning"
   unpatch_hosts
   if [ -f "$TARGET_DIR/default_config.json.bak" ]; then
-    cat "$TARGET_DIR/default_config.json.bak" > "$TARGET_DIR/default_config.json"
+    # AmazOff <= 0.2.5 wrote disable-ssl-cert (turns off TLS checks app-wide); a .bak taken after that keeps it.
+    grep -q '"disable-ssl-cert"' "$TARGET_DIR/default_config.json.bak" ||
+      cat "$TARGET_DIR/default_config.json.bak" > "$TARGET_DIR/default_config.json"
     rm -f "$TARGET_DIR/default_config.json.bak" 2>/dev/null || true
     log "restored default_config"
   fi

@@ -18,6 +18,7 @@ Version 0.2.5, compared with upstream 0.2.3:
 
 **Fixed**
 - AmazOff now uses its own CA, which is only valid for the player bundle host. The goproxy CA used up to 0.2.3 has a public private key; Start removes it from the Amazon app.
+- AmazOff no longer sets `disable-ssl-cert` in the Amazon app's `default_config.json`. That flag turned off TLS certificate checks for every connection the app made, not only the player bundle. The CA pin is enough, because the app trusts the certificates in `bin/certs`. Start removes the flag, and Stop doesn't restore a backup that contains it.
 - If another tool rewrites `/etc/hosts`, the monitor puts AmazOff's entry back, and the service shows *stopped* while the entry is missing.
 - Stop removes the hosts entry, including from the rootfs `/etc/hosts` underneath a bind-mounted table. Before, Glasshouse could copy a stale entry back at boot and break Prime Video after AmazOff was switched off.
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.

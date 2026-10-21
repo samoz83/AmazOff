@@ -1,4 +1,3 @@
 {
-    "log-level": "ALL:WARNING",
-    "disable-ssl-cert": "1"
+    "log-level": "ALL:WARNING"
 }
