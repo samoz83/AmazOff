@@ -67,7 +67,7 @@ case "$1" in
       monitor_stop
       netshim_stop_nginx
       netshim_stop_mitm
-      unpatch_hosts
+      do_unpatch
       log "Stop successful"
     fi
     ;;
@@ -126,7 +126,7 @@ if [ "$SERVICESTATE" = "error" ];then
     monitor_stop
     netshim_stop_nginx
     netshim_stop_mitm
-    unpatch_hosts
+    do_unpatch
   fi
 fi
 exit 0
