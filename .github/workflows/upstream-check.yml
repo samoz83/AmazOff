@@ -1,0 +1,43 @@
+name: Upstream bundle check
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare live bundles with patched sources
+        id: check
+        run: |
+          set +e
+          sh development/amazon/checkUpstream.sh > report.txt
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          cat report.txt
+
+      - name: Open an issue when a bundle changed
+        if: steps.check.outputs.rc == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Amazon changed the Prime Video player bundle"
+          open="$(gh issue list --state open --search "\"$title\" in:title" --limit 1 --json number --jq '.[].number')"
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Still changed: $RUN_URL"
+          else
+            printf '%s\n\n```\n%s\n```\n\nRun `sh development/amazon/setupDev.sh`, test on a TV, then release.\n' \
+              "$RUN_URL" "$(cat report.txt)" | gh issue create --title "$title" --body-file -
+          fi
+
+      - name: Fail the run
+        if: steps.check.outputs.rc != '0'
+        run: exit 1
