@@ -130,6 +130,11 @@ function triggerScriptCommand(command, loadingMessage, timeout)
       state.service = SERVICE_ERROR;
       if(response.errorText)
         $("log").innerHTML = response.errorText;
+      // webOS 26 drops Homebrew Channel's exec permission for other apps (upstream issue #11).
+      if(/Denied method call/.test(response.errorText))
+        $("log").innerHTML += "\n\nHomebrew Channel refused the call. Over SSH as root, run:\n" +
+          "/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service\n" +
+          "then reboot the TV. See Troubleshooting in the README.";
       if(response.stdoutString)
         $("log").innerHTML += response.stdoutString;
     }else{

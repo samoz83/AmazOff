@@ -71,6 +71,17 @@ Notes:
 - A successful patch is confirmed by a **toast notification** when the Amazon app is launched (Only WebOS > 4.0).
 - If the service cant be started you can check for possible fault in the **Details** page.
 
+## Troubleshooting
+
+**`Denied method call "exec" for category "/"`** (seen on webOS 26 / 11.2.0). Homebrew Channel no longer lets other apps call its root service. AmazOff is not the cause, and other root apps fail the same way. Over SSH as root:
+
+1. Run `/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service`, then reboot the TV.
+2. If the error stays, give AmazOff access to the service, then reboot:
+   ```sh
+   echo '{"com.amazoff.patcher-*":["public"]}' > /var/luna-service2-dev/client-permissions.d/com.amazoff.patcher.app.json
+   ```
+3. As a last resort, run the service script directly: `sh /media/developer/apps/usr/palm/applications/com.amazoff.patcher/tools/patchctl.sh start`.
+
 ## Development Notes
 
 Within the folder **development** you can find the applied patches to the player resources. It also contains a setup script for development as well as a script how the dev-version was then packed. Feel free to PR additional patches.
