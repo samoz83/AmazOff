@@ -3,11 +3,11 @@
 > Patch-based customization layer for the stock Amazon app on rooted LG webOS TVs.
 
 > [!NOTE]
-> This is an updated fork of [azoffshowy/AmazOff](https://github.com/azoffshowy/AmazOff). It tracks Amazon's current player bundle and adds the fixes listed under [What's new in this fork](#whats-new-in-this-fork).
+> AmazOff continues development of [azoffshowy/AmazOff](https://github.com/azoffshowy/AmazOff), which stopped at 0.2.3. It tracks Amazon's current player bundle and adds the fixes listed under [Changes since upstream 0.2.3](#changes-since-upstream-023).
 
 ![Screenshot](./Screenshot.png?raw=true)
 
-## What's new in this fork
+## Changes since upstream 0.2.3
 
 Version 0.3.0, compared with upstream 0.2.3:
 
@@ -59,11 +59,16 @@ On WebOS prior to 4.0 the No-Ads patch only removes loaded Ads. Pre-Rolls from p
 
 ## Installation
 
-Preferred installation method:
+Preferred installation methods:
 
-- Install the released `.ipk` using **[Device Manager for webOS](https://github.com/webosbrew/dev-manager-desktop)**
+- Install the latest `.ipk` from [Releases](https://github.com/samoz83/AmazOff/releases) using **[Device Manager for webOS](https://github.com/webosbrew/dev-manager-desktop)**, or
+- If you use [Glasshouse](https://github.com/rorygallagher2024/glasshouse), install it from the **Apps** tab under **Install app from a URL or file**, by uploading the `.ipk` or pasting the `.ipk` link from Releases. That section stays off until you switch it on there.
 
-This avoids manual packaging, signing, or SSH interaction.
+Both avoid manual packaging, signing, or SSH interaction.
+
+## Moving from upstream AmazOff
+
+This version installs over upstream 0.2.3, because it has the same app id (`com.amazoff.patcher`) and a higher version. After installing, open AmazOff and press **Stop**, then **Start**. Start removes upstream's goproxy CA and the `disable-ssl-cert` flag from the Amazon app.
 
 ## Usage
 
