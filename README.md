@@ -26,6 +26,7 @@ Version 0.2.6, compared with upstream 0.2.3:
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 - On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.
+- With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen.
 
 **Updated**
 - nginx 1.30.6 with OpenSSL 3.5.9, replacing nginx 1.26.0 with OpenSSL 1.1.1w. OpenSSL 1.1.1 has had no free security fixes since September 2023.
