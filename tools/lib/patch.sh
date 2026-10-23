@@ -149,6 +149,11 @@ do_patch() {
 do_patch_lovefilm() {
   require_root
   log "patching target=$TARGET_DIR"
+  # cat src > dst empties dst before reading src, so check every file before writing any
+  for f in "$CONFIGS_DIR/ignition-config.txt" "$PATCHER_RESOURCES_DIR/patch/chunk-0.js" \
+           "$TARGET_CONF_LOVEFILM" "$TARGET_CHUNK_LOVEFILM"; do
+    [ -f "$f" ] || die "Missing $f"
+  done
   rm -f "$TARGET_CERT_DIR_LOVEFILM/$OLD_CERT_NAME" 2>/dev/null || true
   patch_lovefilm_conf
   patch_lovefilm_chunk
