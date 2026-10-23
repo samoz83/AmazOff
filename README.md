@@ -26,6 +26,9 @@ Version 0.2.6, compared with upstream 0.2.3:
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 
+**Updated**
+- nginx 1.30.6 with OpenSSL 3.5.9, replacing nginx 1.26.0 with OpenSSL 1.1.1w. OpenSSL 1.1.1 has had no free security fixes since September 2023.
+
 ## Overview
 
 **AmazOff** is an IPK application for **rooted LG webOS TVs**. It extends the Amazon Prime Video Player with following patches applied:
@@ -85,6 +88,8 @@ Notes:
 ## Development Notes
 
 Within the folder **development** you can find the applied patches to the player resources. It also contains a setup script for development as well as a script how the dev-version was then packed. Feel free to PR additional patches.
+
+`development/nginx/build.sh` rebuilds `tools/nginx/nginx`, a static ARMv7 binary with OpenSSL linked in, from hash-checked nginx and OpenSSL sources. It needs Docker with ARM emulation. `development/createPackage.sh` packages only the files the app ships, so repo-only files stay out of the IPK.
 
 ## Updating the Amazon player bundle
 
