@@ -17,8 +17,8 @@ monitor_loop() {
       # Subshell: die would end this loop, e.g. mid app update when bin/certs is missing.
       cert_pinned || { ( patch_default_conf; patch_cert_pin ) >/dev/null 2>&1 && log "Re-applied CA pin"; }
       # awk over a big blocklist every 10s is real CPU on a TV; rescan only when hosts change.
-      # If cksum fails, s stays empty and we rescan every time.
-      s="$(cat "$HOSTS_SYSTEM" "$HOSTS_JAIL" 2>/dev/null | cksum)" && [ "$s" = "$sum" ] && continue
+      # Some firmware (webOS 5, CX) has no cksum; fall back to md5sum. If both fail, s stays empty and we rescan every time.
+      s="$(cat "$HOSTS_SYSTEM" "$HOSTS_JAIL" 2>/dev/null | { cksum 2>/dev/null || md5sum; })" && [ "$s" = "$sum" ] && continue
       sum="$s"
       # Toast once per appearance, e.g. after a blocklist upload while running.
       c="$(hosts_conflicts)"

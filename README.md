@@ -25,6 +25,7 @@ Version 0.2.6, compared with upstream 0.2.3:
 - Stop removes the hosts entry, including from the rootfs `/etc/hosts` underneath a bind-mounted table. Before, Glasshouse could copy a stale entry back at boot and break Prime Video after AmazOff was switched off.
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
+- On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.
 
 **Updated**
 - nginx 1.30.6 with OpenSSL 3.5.9, replacing nginx 1.26.0 with OpenSSL 1.1.1w. OpenSSL 1.1.1 has had no free security fixes since September 2023.
