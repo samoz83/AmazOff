@@ -94,9 +94,17 @@ Notes:
 
 ## Development Notes
 
-Within the folder **development** you can find the applied patches to the player resources. It also contains a setup script for development as well as a script how the dev-version was then packed. Feel free to PR additional patches.
+The `development` folder is not shipped in the IPK.
 
-`development/nginx/build.sh` rebuilds `tools/nginx/nginx`, a static ARMv7 binary with OpenSSL linked in, from hash-checked nginx and OpenSSL sources. It needs Docker with ARM emulation. `development/createPackage.sh` packages only the files the app ships, so repo-only files stay out of the IPK.
+- `createPackage.sh` builds the IPK, checks it against the source files, and writes the Homebrew Channel manifest. Needs `ares-package` from the webOS CLI.
+- `amazon/` holds the scripts that patch Amazon's player bundle. See [Updating the Amazon player bundle](#updating-the-amazon-player-bundle). The `.patch` files and `logReceiver.py` are older diff-based aids.
+- `nginx/build.sh` rebuilds `tools/nginx/nginx`, a static ARMv7 binary with OpenSSL linked in, from hash-checked sources. Needs Docker with ARM emulation.
+- `mitm/` is a debug proxy for watching the Amazon app's traffic. See `development/mitm/README.md`.
+- `lovefilm/` holds older aids for the webOS 3.x patch.
+
+Pushing a `v_<version>` tag builds the IPK on GitHub and creates a draft release.
+
+Feel free to PR additional patches.
 
 ## Updating the Amazon player bundle
 
