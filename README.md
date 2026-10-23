@@ -9,7 +9,7 @@
 
 ## What's new in this fork
 
-Version 0.2.6, compared with upstream 0.2.3:
+Version 0.3.0, compared with upstream 0.2.3:
 
 **Supported**
 - Amazon's current player bundle (October 2026), which `onebox1` and `wave1`-`wave3` now all serve. The no-ads patch is built per route and checked by hash.
