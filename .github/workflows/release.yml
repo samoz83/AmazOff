@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ['v_*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the version matches the tag
+        if: github.ref_type == 'tag'
+        run: |
+          v="${GITHUB_REF_NAME#v_}"
+          grep -q "\"version\": \"$v\"" appinfo.json || { echo "appinfo.json version is not $v"; exit 1; }
+          grep -q "^Version $v," README.md || { echo "README version line is not $v"; exit 1; }
+
+      - name: Install ares-package
+        run: npm install -g @webos-tools/cli@3.2.6
+
+      # createPackage.sh also checks the IPK against the source files and the bundle hashes.
+      - name: Build the IPK and Homebrew Channel manifest
+        run: sh development/createPackage.sh
+
+      # A manual run only builds and checks. A tag makes a draft. Install its IPK on a TV, then publish.
+      - name: Create a draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ipk="com.amazoff.patcher_${GITHUB_REF_NAME#v_}_all.ipk"
+          hash="$(sha256sum "development/$ipk" | cut -d' ' -f1)"
+          printf 'Write the release notes here.\n\nSHA-256 `%s`: `%s`\n' "$ipk" "$hash" > notes.md
+          gh release create "$GITHUB_REF_NAME" --draft --title "Version ${GITHUB_REF_NAME#v_}" --notes-file notes.md \
+            "development/$ipk" development/org.webosbrew.manifest.json
