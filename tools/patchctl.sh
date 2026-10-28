@@ -48,9 +48,8 @@ case "$1" in
       do_patch_lovefilm
     else
       log "starting network inject"
-      do_patch
-      netshim_start_nginx
-      monitor_start
+      # Subshell: a die here must still reach the rollback below, and stdout must stay one line of JSON.
+      ( do_patch; netshim_start_nginx; monitor_start ) >/dev/null
       if monitor_running && netshim_running && hosts_patched && cert_pinned; then
         log "Start successful"
       else
@@ -64,10 +63,8 @@ case "$1" in
       do_unpatch_lovefilm
     else
       log "stopping network inject"
-      monitor_stop
-      netshim_stop_nginx
-      do_unpatch
-      log "Stop successful"
+      # Subshell: a die must not print after the JSON or skip the state check.
+      ( monitor_stop; netshim_stop_nginx; do_unpatch ) >/dev/null && log "Stop successful"
     fi
     ;;
   patch)
@@ -109,10 +106,8 @@ if [ "$SERVICESTATE" = "error" ];then
   if [ "$TARGET_APP_NAME" = "$APP_NAME_LOVEFILM" ]; then
     do_unpatch_lovefilm
   else
-    #recover partial start
-    monitor_stop
-    netshim_stop_nginx
-    do_unpatch
+    #recover partial start; subshell so a die can't print after the JSON
+    ( monitor_stop; netshim_stop_nginx; do_unpatch ) >/dev/null
   fi
 fi
 exit 0

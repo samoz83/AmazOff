@@ -13,7 +13,7 @@ monitor_loop() {
   (
     warned=""; sum=""
     while sleep 10 && pid_alive "$$" && [ -f "$MON_PID" ]; do
-      hosts_patched || { patch_hosts >/dev/null; log "Re-applied hosts override"; }
+      hosts_patched || { ( patch_hosts ) >/dev/null; log "Re-applied hosts override"; }
       # Subshell: die would end this loop, e.g. mid app update when bin/certs is missing.
       cert_pinned || { ( patch_default_conf; patch_cert_pin ) >/dev/null 2>&1 && log "Re-applied CA pin"; }
       # awk over a big blocklist every 10s is real CPU on a TV; rescan only when hosts change.

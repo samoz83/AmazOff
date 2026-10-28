@@ -23,6 +23,8 @@ Version 0.3.0, compared with upstream 0.2.3:
 - Stop also removes AmazOff's CA from the Amazon app and restores its `default_config.json`. Before, the app kept trusting the CA after Stop, and the CA's server key ships in every IPK.
 - If another tool rewrites `/etc/hosts`, the monitor puts AmazOff's entry back, and the service shows *stopped* while the entry is missing.
 - Stop removes the hosts entry, including from the rootfs `/etc/hosts` underneath a bind-mounted table. Before, Glasshouse could copy a stale entry back at boot and break Prime Video after AmazOff was switched off.
+- Start works on TVs with a read-only `/etc/hosts`, such as a C4 on webOS 10.3.1 without Homebrew Channel's "Block system updates". AmazOff mounts a writable copy over it, as that option does. Before, Start failed with "Read-only file system".
+- A failed Start now removes the hosts entries and restores Prime Video's config. Before, it could stop partway and leave Prime Video sending the player bundle to a local server that was no longer running, so playback failed.
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 - On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.

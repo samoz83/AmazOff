@@ -45,8 +45,8 @@ patch_default_conf(){
 }
 
 patch_hosts(){
-  patch_hosts_helper "$HOSTS_SYSTEM"
-  log "Patched system hosts"
+  writable_system_hosts
+  patch_hosts_helper "$HOSTS_SYSTEM" && log "Patched system hosts" || log "WARNING: could not write $HOSTS_SYSTEM"
   patch_hosts_helper "$HOSTS_JAIL"
   log "Patched jail hosts"
 }
@@ -74,6 +74,17 @@ unpatch_rootfs_hosts() {
   rmdir "$root" 2>/dev/null
 }
 
+# Some TVs, such as a C4 on webOS 10.3.1, have a read-only /etc/hosts unless HBC's "Block system
+# updates" has bind-mounted a copy over it. Do the same. Stop leaves the copy mounted until reboot.
+writable_system_hosts() {
+  # busybox `test -w` is always true for root, even on a read-only filesystem, so try a real open.
+  # printf, not `:`: a redirect error on a special builtin exits busybox ash.
+  printf '' 2>/dev/null >>"$HOSTS_SYSTEM" && return 0
+  # A fresh mktemp file, not one in /tmp/patcher: another user could have created that dir first.
+  h="$(mktemp)" && cat "$HOSTS_SYSTEM" >"$h" && chmod 644 "$h" && mount --bind "$h" "$HOSTS_SYSTEM" &&
+    log "Mounted a writable copy over $HOSTS_SYSTEM"
+}
+
 patch_hosts_helper() {
   f="$1"
   d="$(dirname "$f")"
@@ -84,7 +95,7 @@ patch_hosts_helper() {
   awk -v line="$HOST_ENTRY" '
     $0 == line { found=1 }
     END { exit (found ? 0 : 1) }
-  ' "$f" || printf '\n%s\n' "$HOST_ENTRY" >>"$f"
+  ' "$f" || printf '\n%s\n' "$HOST_ENTRY" >>"$f" || return 1
 
   awk -v line="$HOST_ENTRY_V6" '
     $0 == line { found=1 }
@@ -94,7 +105,8 @@ patch_hosts_helper() {
 
 unpatch_hosts_helper() {
   f="$1"
-  [ -f "$f" ] || die "hosts missing: $f"
+  # If there's nothing to remove, don't write, so Stop and rollback get past a read-only or missing file.
+  grep -qxF -e "$HOST_ENTRY" -e "$HOST_ENTRY_V6" "$f" 2>/dev/null || return 0
 
   tmp="$(mktemp)" || die "mktemp failed"
   awk -v l4="$HOST_ENTRY" -v l6="$HOST_ENTRY_V6" '$0 != l4 && $0 != l6 { print }' "$f" >"$tmp" || die "write tmp failed: $tmp"
@@ -193,7 +205,6 @@ do_unpatch() {
   log "unpatch started: target=$TARGET_DIR"
   rm -f "$TARGET_CERT_DIR/$CERT_NAME" "$TARGET_CERT_DIR/$OLD_CERT_NAME" 2>/dev/null || true
   log "removed Cert pinning"
-  unpatch_hosts
   if [ -f "$TARGET_DIR/default_config.json.bak" ]; then
     # AmazOff <= 0.2.5 wrote disable-ssl-cert (turns off TLS checks app-wide); a .bak taken after that keeps it.
     grep -q '"disable-ssl-cert"' "$TARGET_DIR/default_config.json.bak" ||
@@ -201,6 +212,8 @@ do_unpatch() {
     rm -f "$TARGET_DIR/default_config.json.bak" 2>/dev/null || true
     log "restored default_config"
   fi
+  # Last, because it's the step that can die, for example when our entry is in a read-only layer.
+  unpatch_hosts
   log "Successfully unpatched"
 }
 
