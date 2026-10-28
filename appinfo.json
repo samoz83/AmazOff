@@ -1,6 +1,6 @@
 {
   "id": "com.amazoff.patcher",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "vendor": "amazoff",
   "type": "web",
   "main": "index.html",
