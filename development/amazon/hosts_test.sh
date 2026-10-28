@@ -38,4 +38,27 @@ unpatch_hosts
 [ "$(grep -v '^$' "$HOSTS_SYSTEM")" = "$before" ] || fail "unpatch changed other lines"
 [ -z "$(hosts_conflicts | grep -v tracker.example)" ] || fail "unexpected conflicts"
 
+# webOS 10 C4: Stop/rollback on a read-only hosts without our entry must not die
+chmod a-w "$HOSTS_SYSTEM"
+( unpatch_hosts ) || fail "unpatch died on read-only hosts without our entry"
+chmod u+w "$HOSTS_SYSTEM"
+rm "$HOSTS_JAIL"
+( unpatch_hosts ) || fail "unpatch died on missing jail hosts"
+
+# Read-only /etc/hosts: Start mounts a writable copy over it. Root ignores chmod, so skip the asserts there.
+export TMPDIR="$T"
+mount() { : >"$T/mounted"; chmod u+w "$3"; }
+chmod a-w "$HOSTS_SYSTEM"
+( patch_hosts ) || fail "patch died on read-only hosts"
+[ "$(id -u)" = 0 ] || [ -f "$T/mounted" ] || fail "no writable copy mounted over read-only hosts"
+hosts_patched || fail "entry missing after mounting a writable copy"
+
+# If the mount fails too, Start must still patch the jail and leave the failure to the state check.
+unpatch_hosts
+mount() { return 1; }
+chmod a-w "$HOSTS_SYSTEM"
+( patch_hosts ) || fail "patch died when the mount failed"
+grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" || fail "jail not patched when the mount failed"
+chmod u+w "$HOSTS_SYSTEM"
+
 echo "hosts_test: ok"
