@@ -84,6 +84,16 @@ patch(
   'case"Remote":if(__HOMEBREW_NOADS)break;'
 );
 
+// Live pre-rolls: the server stitches a PreRoll_N period into the live stream. With
+// showLivePreRolls on, the player starts inside it and blocks Go-to-Live until it has played.
+// Treat the flag as off, a state Amazon supports; the player then starts as it did before this bundle.
+patch(
+  "live pre-rolls",
+  new RegExp(`(!0===${ID}(?:\\.${ID})*\\.showLivePreRolls\\.enabled)`),
+  "$1&&!__HOMEBREW_NOADS",
+  5
+);
+
 // Telemetry: no-op the analytics sinks only. Every one is fire-and-forget (callers
 // ignore the result). Session reporting (UpdateStream, PES sessions, bookmarks) and
 // licence calls are deliberately untouched: resume and playback depend on them.
@@ -110,7 +120,7 @@ new Function(source); // syntax check
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "ATVUnfPlayerBundle.js"), source);
 const manifest = {
-  patchRevision: 4,
+  patchRevision: 5,
   route,
   sourceUrl,
   sourceSha256,

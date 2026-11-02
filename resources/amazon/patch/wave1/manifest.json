@@ -1,7 +1,7 @@
 {
-  "patchRevision": 4,
+  "patchRevision": 5,
   "route": "wave1",
   "sourceUrl": "https://cloudfront.xp-assets.aiv-cdn.net/family/lg/ATVUnfPlayerBundle-1.0/wave1/js/ATVUnfPlayerBundle.js",
   "sourceSha256": "420f6d7257eb1c28930a41721cca138f1fe1099118c2e7ca2e608a3a7ac1630e",
-  "patchedSha256": "d41a02c6b5bc571580718c38c2b63c308ed3dc7e15fae9c40d3bd9f3dcc07de5"
+  "patchedSha256": "2eeef2cbf1bbe1aa112e155619c54b3781617ae0473c937059454c0d9b3770f1"
 }
