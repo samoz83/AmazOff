@@ -2,6 +2,6 @@
   "patchRevision": 3,
   "route": "onebox1",
   "sourceUrl": "https://cloudfront.xp-assets.aiv-cdn.net/family/lg/ATVUnfPlayerBundle-1.0/onebox1/js/ATVUnfPlayerBundle.js",
-  "sourceSha256": "88a247c882aabf4cc0dec54f3e011a8b7e69ffdfd643728d48cea00fbb77d0e3",
-  "patchedSha256": "db9e94c0906a68ee7ca2c5d72bed61ea7fb8086e6c473fde322077cc6b762033"
+  "sourceSha256": "420f6d7257eb1c28930a41721cca138f1fe1099118c2e7ca2e608a3a7ac1630e",
+  "patchedSha256": "c2dddf2bfcc1fc579b6f5cf25b4348cdd5541aedc48ace229b3f9b7e2ed228d4"
 }
