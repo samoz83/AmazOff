@@ -8,14 +8,17 @@ date
 DIR="$(dirname "$(readlink -f $0)")"
 echo $DIR
 . "$DIR/lib/common.sh"
+. "$DIR/lib/monitor.sh"
 
 $DIR/patchctl.sh start >/dev/null   # its JSON line repeats the log below in base64
 echo
 cat "$LOG"
 
 # An app opened before Start finished keeps the unpatched player until it restarts.
+# If Prime already got the patched player from nginx during Start, leave it open.
 AM=luna://com.webos.applicationManager
-if luna-send -n 1 "$AM/running" '{}' | grep -q "\"id\": *\"$TARGET_APP_NAME\""; then
+if ! grep -qE "$TRIGGER_RE" "$NGINX_ACCESS_LOG" 2>/dev/null &&
+  luna-send -n 1 "$AM/running" '{}' | grep -q "\"id\": *\"$TARGET_APP_NAME\""; then
   if luna-send -n 1 "$AM/getForegroundAppInfo" '{}' | grep -q "\"appId\": *\"$TARGET_APP_NAME\""; then
     toast "AmazOff ready, restart Prime Video to remove ads"
   else
