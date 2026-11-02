@@ -20,12 +20,12 @@ cert_deferred() {
   [ ! -d "$TARGET_CERT_DIR" ] && [ ! -d "$UPPER_CERT_DIR" ]
 }
 
-# Returns 1 when the pin has to wait for bin/certs.
+# Returns 1 only when pinning fails. With nowhere to pin yet it returns 0, so Start goes on and the monitor pins later.
 patch_cert_pin() {
   d="$TARGET_CERT_DIR"
   if [ ! -d "$d" ]; then
     # The kernel allows changes to an overlay's upper layer while it's unmounted.
-    [ -d "$UPPER_CERT_DIR" ] || { log "CA pin deferred: $TARGET_CERT_DIR not mounted; the monitor adds it when Prime Video opens"; return 1; }
+    [ -d "$UPPER_CERT_DIR" ] || { log "CA pin deferred: $TARGET_CERT_DIR not mounted; the monitor adds it when Prime Video opens"; return 0; }
     d="$UPPER_CERT_DIR"
   fi
   if [ -f "$d/$OLD_CERT_NAME" ]; then
@@ -34,7 +34,7 @@ patch_cert_pin() {
   fi
   # The app's user may be able to write here, and a dangling link would make root's cp create its target.
   [ -L "$d/$CERT_NAME" ] && { log "WARNING: $d/$CERT_NAME is a symlink, not pinning"; return 1; }
-  if [ ! -f "$d/$CERT_NAME" ]; then
+  if ! cmp -s "$d/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; then
     cp "$CERT_DIR/$CERT_NAME" "$d/$CERT_NAME" || { log "WARNING: could not place CA in $d"; return 1; }
     chmod 755 "$d/$CERT_NAME" 2>/dev/null || true
     log "Placed CA cert in $d"
@@ -56,7 +56,7 @@ patch_lovefilm_chunk(){
 patch_default_conf(){
   # Not there while the webOS 11 overlay is unmounted; writing it would land in the bare mountpoint.
   [ -f "$TARGET_DIR/default_config.json" ] || return 0
-  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null
+  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null || return 1
   cat "$CONFIGS_DIR/default_config.json" > "$TARGET_DIR/default_config.json"
 }
 
@@ -136,7 +136,8 @@ manifest_field() {
 
 # An Amazon app update replaces bin/certs; without the pin, TLS to nginx fails.
 cert_pinned() {
-  [ -f "$TARGET_CERT_DIR/$CERT_NAME" ] || { [ ! -d "$TARGET_CERT_DIR" ] && [ -f "$UPPER_CERT_DIR/$CERT_NAME" ]; }
+  cmp -s "$TARGET_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME" ||
+    { [ ! -d "$TARGET_CERT_DIR" ] && cmp -s "$UPPER_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; }
 }
 
 # For the running state: pinned, or waiting for bin/certs, which the monitor handles.
@@ -145,8 +146,11 @@ cert_ok() {
 }
 
 # Another hosts manager (e.g. an ad blackhole tool) can rewrite these files and drop our entry.
+# Without the ::1 line, an IPv6 lookup can still reach the real CDN.
 hosts_patched() {
-  grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null && grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null
+  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL"; do
+    grep -qxF "$HOST_ENTRY" "$f" 2>/dev/null && grep -qxF "$HOST_ENTRY_V6" "$f" 2>/dev/null || return 1
+  done
 }
 
 # Lines not ours that also map our host, e.g. a Glasshouse uploaded blocklist sinkholing it.
@@ -172,8 +176,8 @@ $c"
 do_patch() {
   require_root
   log "patching target=$TARGET_DIR"
-  patch_default_conf
-  patch_cert_pin || true   # deferred or failed: logged, and the state check decides
+  patch_default_conf || return 1
+  patch_cert_pin || return 1
   patch_hosts
   warn_hosts_conflicts && toast "AmazOff: blocked by another hosts entry, see Details"
   log "Successfully patched"
@@ -255,7 +259,7 @@ patch_status_log() {
     elif cert_deferred; then
       log "CA waiting: $TARGET_CERT_DIR isn't there (webOS 11 with Prime Video closed, or an app update). The monitor adds it when it appears."
     else
-      log "WARNING: CA missing from the Amazon app (app updated?). Press Start again."
+      log "WARNING: CA missing or out of date in the Amazon app (app updated?). Press Start again."
     fi
   fi
   if [ -f "$BASE/autostart.log" ]; then

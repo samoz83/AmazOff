@@ -7,7 +7,7 @@ T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 
 CERT_DIR="$T" TARGET_DIR="$T" TARGET_APP_NAME=amazon
-: >"$T/ca.0"   # CERT_NAME comes from this when patch.sh is sourced
+echo ours >"$T/ca.0"   # CERT_NAME comes from this when patch.sh is sourced
 log() { :; }
 die() { echo "die: $*"; exit 1; }
 . "$ROOT_DIR/tools/lib/patch.sh"
@@ -29,6 +29,10 @@ patch_hosts
 hosts_patched || fail "entry missing after patch"
 [ "$(grep -cxF "$HOST_ENTRY" "$HOSTS_SYSTEM")" = 1 ] || fail "patch is not idempotent"
 grep -qxF "$HOST_ENTRY_V6" "$HOSTS_JAIL" || fail "v6 entry missing in new jail file"
+grep -vxF "$HOST_ENTRY_V6" "$HOSTS_JAIL" >"$T/j" && cat "$T/j" >"$HOSTS_JAIL"
+! hosts_patched || fail "patched state accepted without the v6 entry"
+patch_hosts
+hosts_patched || fail "v6 entry not restored"
 
 [ "$(hosts_conflicts)" = "0.0.0.0 tracker.example CloudFront.XP-assets.aiv-cdn.net # blocklist" ] ||
   fail "conflicts: got '$(hosts_conflicts)'"
@@ -68,7 +72,7 @@ UPPER_CERT_DIR="$T/upper/bin/certs"
 require_root() { :; }
 toast() { :; }
 ( do_patch ) >/dev/null || fail "Start died with nowhere to pin the CA"
-! ( patch_cert_pin ) || fail "pin reported success with nowhere to pin"
+( patch_cert_pin ) || fail "Start would stop with nowhere to pin the CA"
 cert_deferred && cert_ok && ! cert_pinned || fail "nothing to pin into: want deferred, not pinned"
 patch_default_conf
 [ ! -f "$T/default_config.json" ] || fail "config written into an unmounted app dir"
@@ -82,11 +86,13 @@ do_unpatch >/dev/null
 
 # Mounted: pin into bin/certs, and leave the upper dir alone (changing it under a mount is undefined).
 mkdir -p "$TARGET_DIR/bin/certs"
-: >"$UPPER_CERT_DIR/ca.0"
+cp "$T/ca.0" "$UPPER_CERT_DIR/ca.0"
 ln -s "$T/planted" "$TARGET_DIR/bin/certs/ca.0"
 ! ( patch_cert_pin ) && [ ! -e "$T/planted" ] || fail "pin followed a symlink"
 rm "$TARGET_DIR/bin/certs/ca.0"
-patch_cert_pin && [ -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "CA not pinned in bin/certs"
+echo stale >"$TARGET_DIR/bin/certs/ca.0"
+! cert_pinned || fail "a different file with our CA's name counted as pinned"
+patch_cert_pin && cmp -s "$TARGET_DIR/bin/certs/ca.0" "$T/ca.0" || fail "CA not pinned or not replaced in bin/certs"
 do_unpatch >/dev/null
 [ ! -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "Stop left the CA in bin/certs"
 [ -f "$UPPER_CERT_DIR/ca.0" ] || fail "Stop changed the upper dir while mounted"
