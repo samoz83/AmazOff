@@ -17,9 +17,9 @@ patch_cert_pin() {
       rm -f "$TARGET_CERT_DIR/$OLD_CERT_NAME"
       log "Removed old goproxy CA"
     fi
-    if [ ! -f "$TARGET_CERT_DIR/$CERT_NAME" ]; then
-      cp "$CERT_DIR/$CERT_NAME" "$TARGET_CERT_DIR/$CERT_NAME"
-      chmod 755 "$TARGET_CERT_DIR/$CERT_NAME" 2>/dev/null || true
+    if ! cert_pinned; then
+      cp "$CERT_DIR/$CERT_NAME" "$TARGET_CERT_DIR/$CERT_NAME" || return 1
+      chmod 644 "$TARGET_CERT_DIR/$CERT_NAME" || return 1
       log "Placed CA cert"
     else
       log "CA already in place"
@@ -40,14 +40,15 @@ patch_lovefilm_chunk(){
 }
 
 patch_default_conf(){
-  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null
+  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null || return 1
   cat "$CONFIGS_DIR/default_config.json" > "$TARGET_DIR/default_config.json"
 }
 
 patch_hosts(){
-  writable_system_hosts
-  patch_hosts_helper "$HOSTS_SYSTEM" && log "Patched system hosts" || log "WARNING: could not write $HOSTS_SYSTEM"
-  patch_hosts_helper "$HOSTS_JAIL"
+  writable_system_hosts || return 1
+  patch_hosts_helper "$HOSTS_SYSTEM" || return 1
+  log "Patched system hosts"
+  patch_hosts_helper "$HOSTS_JAIL" || return 1
   log "Patched jail hosts"
 }
 
@@ -120,12 +121,15 @@ manifest_field() {
 
 # An Amazon app update replaces bin/certs; without the pin, TLS to nginx fails.
 cert_pinned() {
-  [ -f "$TARGET_CERT_DIR/$CERT_NAME" ]
+  cmp -s "$TARGET_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME"
 }
 
 # Another hosts manager (e.g. an ad blackhole tool) can rewrite these files and drop our entry.
 hosts_patched() {
-  grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null && grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null
+  grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null &&
+    grep -qxF "$HOST_ENTRY_V6" "$HOSTS_SYSTEM" 2>/dev/null &&
+    grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null &&
+    grep -qxF "$HOST_ENTRY_V6" "$HOSTS_JAIL" 2>/dev/null
 }
 
 # Lines not ours that also map our host, e.g. a Glasshouse uploaded blocklist sinkholing it.
@@ -151,9 +155,12 @@ $c"
 do_patch() {
   require_root
   log "patching target=$TARGET_DIR"
-  patch_default_conf
-  patch_cert_pin
-  patch_hosts
+  # Fail before changing Prime when even a writable system hosts copy cannot
+  # be prepared. Reuse the upstream mktemp bind and its cleanup behavior.
+  writable_system_hosts || return 1
+  patch_default_conf || return 1
+  patch_cert_pin || return 1
+  patch_hosts || return 1
   warn_hosts_conflicts && toast "AmazOff: blocked by another hosts entry, see Details"
   log "Successfully patched"
 }
@@ -213,7 +220,7 @@ do_unpatch() {
     log "restored default_config"
   fi
   # Last, because it's the step that can die, for example when our entry is in a read-only layer.
-  unpatch_hosts
+  unpatch_hosts || return 1
   log "Successfully unpatched"
 }
 

@@ -6,6 +6,7 @@ DIR="$(dirname "$0")"
 . "$DIR/lib/monitor.sh"
 
 require_root
+RESULT=0
 
 SERVICESTATE="unknown"
 setServiceState(){
@@ -49,11 +50,15 @@ case "$1" in
     else
       log "starting network inject"
       # Subshell: a die here must still reach the rollback below, and stdout must stay one line of JSON.
-      ( do_patch; netshim_start_nginx; monitor_start ) >/dev/null
+      if ! ( do_patch && netshim_start_nginx && monitor_start ) >/dev/null; then
+        RESULT=1
+        log "ERROR: patch preparation failed"
+      fi
       if monitor_running && netshim_running && hosts_patched && cert_pinned; then
         log "Start successful"
       else
         log "Start failed"
+        RESULT=1
       fi
     fi
     ;;
@@ -64,20 +69,25 @@ case "$1" in
     else
       log "stopping network inject"
       # Subshell: a die must not print after the JSON or skip the state check.
-      ( monitor_stop; netshim_stop_nginx; do_unpatch ) >/dev/null && log "Stop successful"
+      if ( monitor_stop; netshim_stop_nginx; do_unpatch ) >/dev/null; then
+        log "Stop successful"
+      else
+        RESULT=1
+        log "ERROR: Stop cleanup incomplete"
+      fi
     fi
     ;;
   patch)
     : > "$LOG"
     #broken on lovefilm
     log "starting patch routine"
-    do_patch
+    ( do_patch ) >/dev/null || RESULT=1
     ;;
   unpatch)
     : > "$LOG"
     #broken on lovefilm
     log "starting unpatch routine"
-    do_unpatch
+    ( do_unpatch ) >/dev/null || RESULT=1
     ;;
   status)
     : > "$LOG"
@@ -103,6 +113,7 @@ setServiceState "${1:-}"
 setAutostartState
 printState
 if [ "$SERVICESTATE" = "error" ];then
+  RESULT=1
   if [ "$TARGET_APP_NAME" = "$APP_NAME_LOVEFILM" ]; then
     do_unpatch_lovefilm
   else
@@ -110,4 +121,4 @@ if [ "$SERVICESTATE" = "error" ];then
     ( monitor_stop; netshim_stop_nginx; do_unpatch ) >/dev/null
   fi
 fi
-exit 0
+exit "$RESULT"

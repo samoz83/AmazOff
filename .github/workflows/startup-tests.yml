@@ -1,0 +1,26 @@
+name: Startup tests
+
+on:
+  pull_request:
+  push:
+    branches: [master, 'codex/**']
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check shell syntax
+        run: |
+          for script in tools/*.sh tools/lib/*.sh; do
+            sh -n "$script"
+          done
+      - name: Test startup and repair
+        run: python3 development/tests/test_startup.py
+      - name: Test hosts handling
+        run: sh development/amazon/hosts_test.sh
+      - name: Verify packaged player hashes
+        run: sh development/amazon/prepareRelease.sh

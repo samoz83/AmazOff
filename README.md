@@ -28,7 +28,8 @@ Version 0.3.1, compared with upstream 0.2.3:
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 - On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.
-- With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen.
+- Autostart verifies the service without closing or launching Prime Video. Readiness retries for up to 60 seconds using kernel uptime, so an early clock correction cannot extend the deadline. TLS certificate validation stays enabled; a TV starting with an incorrect clock can recover after time synchronization. The complete boot worker has a 100-second timeout.
+- Service checks require both IPv4 and IPv6 redirects in system/jail hosts and the exact CA contents. Failed preparation stops startup before later patch steps, returns an error, and retains the existing rollback.
 
 **Updated**
 - nginx 1.30.6 with OpenSSL 3.5.9, replacing nginx 1.26.0 with OpenSSL 1.1.1w. OpenSSL 1.1.1 has had no free security fixes since September 2023.
@@ -82,6 +83,7 @@ This version installs over upstream 0.2.3, because it has the same app id (`com.
 Notes:
 - A successful patch is confirmed by a **toast notification** when the Amazon app is launched (Only WebOS > 4.0).
 - If the service cant be started you can check for possible fault in the **Details** page.
+- Boot diagnostics are in `/tmp/patcher/boot.log`. They include readiness failure details; `/tmp/patcher/boot.complete` is written only after successful verification. Readiness confirms the local service, not which player an already-running Prime process has cached. If ads remain after AmazOff is ready, close and reopen Prime manually.
 
 ## Troubleshooting
 
@@ -103,6 +105,7 @@ The `development` folder is not shipped in the IPK.
 - `nginx/build.sh` rebuilds `tools/nginx/nginx`, a static ARMv7 binary with OpenSSL linked in, from hash-checked sources. Needs Docker with ARM emulation.
 - `mitm/` is a debug proxy for watching the Amazon app's traffic. See `development/mitm/README.md`.
 - `lovefilm/` holds older aids for the webOS 3.x patch.
+- `tests/test_startup.py` tests preparation failures, complete hosts/CA checks, startup behavior and certificate recovery with an isolated clock fixture. Run `python3 development/tests/test_startup.py`; it needs Python 3, OpenSSL, a POSIX shell and standard Linux utilities, but no root access, network or TV. `AMAZOFF_TEST_SHELL='busybox ash'` also exercises the repair/control helpers with BusyBox.
 
 Pushing a `v_<version>` tag builds the IPK on GitHub and creates a draft release.
 

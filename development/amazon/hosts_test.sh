@@ -53,12 +53,10 @@ chmod a-w "$HOSTS_SYSTEM"
 [ "$(id -u)" = 0 ] || [ -f "$T/mounted" ] || fail "no writable copy mounted over read-only hosts"
 hosts_patched || fail "entry missing after mounting a writable copy"
 
-# If the mount fails too, Start must still patch the jail and leave the failure to the state check.
+# A system-hosts preparation failure must not leave a new jail-only redirect.
 unpatch_hosts
-mount() { return 1; }
-chmod a-w "$HOSTS_SYSTEM"
-( patch_hosts ) || fail "patch died when the mount failed"
-grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" || fail "jail not patched when the mount failed"
-chmod u+w "$HOSTS_SYSTEM"
+writable_system_hosts() { return 1; }
+if ( patch_hosts ); then fail "hosts preparation failure was accepted"; fi
+! grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" || fail "jail patched after system-hosts failure"
 
 echo "hosts_test: ok"
