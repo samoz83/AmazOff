@@ -1,0 +1,4 @@
+# ares-package ships the working tree as is, and CRLF breaks sh and nginx.conf on the TV.
+* text=auto eol=lf
+# Vendored file, committed with CRLF.
+js/webOSTVjs-1.2.10/LICENSE-2.0.txt -text
