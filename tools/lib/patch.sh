@@ -20,11 +20,6 @@ cert_deferred() {
   [ ! -d "$TARGET_CERT_DIR" ] && [ ! -d "$UPPER_CERT_DIR" ]
 }
 
-# Shell compare, not cmp: busybox on some TVs lacks applets (the CX has no cksum). Text files only.
-same_file() {
-  [ -f "$1" ] && [ "$(cat "$1")" = "$(cat "$2")" ]
-}
-
 # Returns 1 only when pinning fails. With nowhere to pin yet it returns 0, so Start goes on and the monitor pins later.
 patch_cert_pin() {
   d="$TARGET_CERT_DIR"
@@ -39,7 +34,7 @@ patch_cert_pin() {
   fi
   # The app's user may be able to write here, and a dangling link would make root's cp create its target.
   [ -L "$d/$CERT_NAME" ] && { log "WARNING: $d/$CERT_NAME is a symlink, not pinning"; return 1; }
-  if ! same_file "$d/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; then
+  if ! cmp -s "$d/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; then
     cp "$CERT_DIR/$CERT_NAME" "$d/$CERT_NAME" || { log "WARNING: could not place CA in $d"; return 1; }
     chmod 755 "$d/$CERT_NAME" 2>/dev/null || true
     log "Placed CA cert in $d"
@@ -141,14 +136,14 @@ manifest_field() {
 
 # An Amazon app update replaces bin/certs; without the pin, TLS to nginx fails.
 cert_pinned() {
-  same_file "$TARGET_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME" ||
-    { [ ! -d "$TARGET_CERT_DIR" ] && same_file "$UPPER_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; }
+  cmp -s "$TARGET_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME" ||
+    { [ ! -d "$TARGET_CERT_DIR" ] && cmp -s "$UPPER_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; }
 }
 
 # Our config, or none while the webOS 11 overlay is unmounted. It only sets the log level, so the
 # running state ignores it, but it replaces an upstream config with disable-ssl-cert.
 conf_ok() {
-  [ ! -f "$TARGET_DIR/default_config.json" ] || same_file "$TARGET_DIR/default_config.json" "$CONFIGS_DIR/default_config.json"
+  [ ! -f "$TARGET_DIR/default_config.json" ] || cmp -s "$TARGET_DIR/default_config.json" "$CONFIGS_DIR/default_config.json"
 }
 
 # For the running state: pinned, or waiting for bin/certs, which the monitor handles.
