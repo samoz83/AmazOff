@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests the hosts-file helpers in tools/lib/patch.sh against a temp tree. Run from anywhere.
+# Tests the hosts-file and CA pin helpers in tools/lib/patch.sh against a temp tree. Run from anywhere.
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
@@ -7,6 +7,7 @@ T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 
 CERT_DIR="$T" TARGET_DIR="$T" TARGET_APP_NAME=amazon
+: >"$T/ca.0"   # CERT_NAME comes from this when patch.sh is sourced
 log() { :; }
 die() { echo "die: $*"; exit 1; }
 . "$ROOT_DIR/tools/lib/patch.sh"
@@ -60,5 +61,32 @@ chmod a-w "$HOSTS_SYSTEM"
 ( patch_hosts ) || fail "patch died when the mount failed"
 grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" || fail "jail not patched when the mount failed"
 chmod u+w "$HOSTS_SYSTEM"
+
+# CA pin. webOS 11 at boot: no bin/certs and no overlay upper dir. Start must not die, and the
+# running state must accept it so the monitor can pin later.
+UPPER_CERT_DIR="$T/upper/bin/certs"
+require_root() { :; }
+toast() { :; }
+( do_patch ) >/dev/null || fail "Start died with nowhere to pin the CA"
+! ( patch_cert_pin ) || fail "pin reported success with nowhere to pin"
+cert_deferred && cert_ok && ! cert_pinned || fail "nothing to pin into: want deferred, not pinned"
+patch_default_conf
+[ ! -f "$T/default_config.json" ] || fail "config written into an unmounted app dir"
+
+# Overlay unmounted but its upper dir exists: pin there, and Stop removes it.
+mkdir -p "$UPPER_CERT_DIR"
+patch_cert_pin || fail "pin into the upper dir failed"
+[ -f "$UPPER_CERT_DIR/ca.0" ] && cert_pinned && ! cert_deferred || fail "CA not pinned in the upper dir"
+do_unpatch >/dev/null
+[ ! -f "$UPPER_CERT_DIR/ca.0" ] || fail "Stop left the CA in the upper dir"
+
+# Mounted: pin into bin/certs, and leave the upper dir alone (changing it under a mount is undefined).
+mkdir -p "$TARGET_DIR/bin/certs"
+: >"$UPPER_CERT_DIR/ca.0"
+patch_cert_pin && [ -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "CA not pinned in bin/certs"
+do_unpatch >/dev/null
+[ ! -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "Stop left the CA in bin/certs"
+[ -f "$UPPER_CERT_DIR/ca.0" ] || fail "Stop changed the upper dir while mounted"
+! cert_pinned && ! cert_ok || fail "bin/certs without the CA must not count as running"
 
 echo "hosts_test: ok"

@@ -18,7 +18,7 @@ setServiceState(){
       SERVICESTATE="stopped"
     fi
   else
-    if monitor_running && netshim_running && hosts_patched && cert_pinned; then
+    if monitor_running && netshim_running && hosts_patched && cert_ok; then
       SERVICESTATE="running"
     elif [ "${1:-}" = "start" ]; then
       SERVICESTATE="error"
@@ -50,7 +50,7 @@ case "$1" in
       log "starting network inject"
       # Subshell: a die here must still reach the rollback below, and stdout must stay one line of JSON.
       ( do_patch; netshim_start_nginx; monitor_start ) >/dev/null
-      if monitor_running && netshim_running && hosts_patched && cert_pinned; then
+      if monitor_running && netshim_running && hosts_patched && cert_ok; then
         log "Start successful"
       else
         log "Start failed"

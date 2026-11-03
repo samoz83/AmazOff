@@ -1,10 +1,17 @@
 #!/bin/sh
 
+# Log the boot run here, including a die in common.sh, because every patchctl.sh command clears
+# patcher.log. Status shows this file. The path is $BASE from common.sh.
+mkdir -p /tmp/patcher && exec >/tmp/patcher/autostart.log 2>&1
+date
+
 DIR="$(dirname "$(readlink -f $0)")"
 echo $DIR
 . "$DIR/lib/common.sh"
 
 $DIR/patchctl.sh start
+echo
+cat "$LOG"
 
 # An app opened before Start finished keeps the unpatched player until it restarts.
 AM=luna://com.webos.applicationManager
