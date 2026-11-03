@@ -98,4 +98,10 @@ do_unpatch >/dev/null
 [ -f "$UPPER_CERT_DIR/ca.0" ] || fail "Stop changed the upper dir while mounted"
 ! cert_pinned && ! cert_ok || fail "bin/certs without the CA must not count as running"
 
+# Config: absent (overlay unmounted) or ours counts as patched; the stock one doesn't.
+CONFIGS_DIR="$T/conf"; mkdir -p "$CONFIGS_DIR"; echo ours >"$CONFIGS_DIR/default_config.json"
+rm -f "$T/default_config.json"; conf_ok || fail "missing config must not count as unpatched"
+echo stock >"$T/default_config.json"; ! conf_ok || fail "stock config counted as patched"
+patch_default_conf && conf_ok || fail "config not patched"
+
 echo "hosts_test: ok"

@@ -14,8 +14,9 @@ monitor_loop() {
     warned=""; sum=""
     while sleep 10 && pid_alive "$$" && [ -f "$MON_PID" ]; do
       hosts_patched || { ( patch_hosts ) >/dev/null; log "Re-applied hosts override"; }
-      # After an app update, or when webOS 11 mounts bin/certs as Prime Video opens. Subshell: die would end this loop.
-      cert_ok || { ( patch_default_conf && patch_cert_pin ) >/dev/null 2>&1 && log "Re-applied CA pin"; }
+      # After an app update, or when webOS 11 mounts Prime Video's dir as it opens. Subshell: die would end this loop.
+      conf_ok || { ( patch_default_conf ) >/dev/null 2>&1 && log "Re-applied default_config.json"; }
+      cert_ok || { ( patch_cert_pin ) >/dev/null 2>&1 && log "Re-applied CA pin"; }
       # awk over a big blocklist every 10s is real CPU on a TV; rescan only when hosts change.
       # Some firmware (webOS 5, CX) has no cksum; fall back to md5sum. If both fail, s stays empty and we rescan every time.
       s="$(cat "$HOSTS_SYSTEM" "$HOSTS_JAIL" 2>/dev/null | { cksum 2>/dev/null || md5sum; })" && [ "$s" = "$sum" ] && continue

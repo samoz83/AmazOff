@@ -10,9 +10,13 @@ echo $DIR
 . "$DIR/lib/common.sh"
 . "$DIR/lib/monitor.sh"
 
-$DIR/patchctl.sh start >/dev/null   # its JSON line repeats the log below in base64
+# Not echoed: its JSON line repeats the log below in base64.
+state="$($DIR/patchctl.sh start)"
 echo
 cat "$LOG"
+
+# Nothing is patched after a failed Start, so leave Prime alone.
+case "$state" in *'"service":"running"'*) ;; *) exit 0 ;; esac
 
 # An app opened before Start finished keeps the unpatched player until it restarts.
 # If Prime already got the patched player from nginx during Start, leave it open.
