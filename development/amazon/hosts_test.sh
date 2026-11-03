@@ -104,4 +104,35 @@ rm -f "$T/default_config.json"; conf_ok || fail "missing config must not count a
 echo stock >"$T/default_config.json"; ! conf_ok || fail "stock config counted as patched"
 patch_default_conf && conf_ok || fail "config not patched"
 
+# Stop also cleans the rootfs /etc/hosts hidden under a bind-mounted table (unpatch_rootfs_hosts).
+# Fake /proc/mounts, mount and umount; the rest is the real code. Subshell so the fakes don't leak.
+(
+  . "$ROOT_DIR/tools/lib/patch.sh"
+  HOSTS_SYSTEM="$T/visible" HOSTS_JAIL="$T/jail/hosts"
+  clean="127.0.0.1 localhost
+0.0.0.0 other.example"
+  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL" "$T/hidden"; do
+    printf '%s\n%s\n%s\n' "$clean" "$HOST_ENTRY" "$HOST_ENTRY_V6" >"$f"
+  done
+  grep() { if [ "$3" = /proc/mounts ]; then return 0; fi; command grep "$@"; }
+  mount() { [ "$1 $2" = "--bind /" ] || exit 90; mkdir -p "$3/etc"; cp "$T/hidden" "$3/etc/hosts"; }
+  umount() { cp "$1/etc/hosts" "$T/hidden" && rm -r "$1/etc" && : >"$T/released"; }
+  unpatch_hosts
+  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL" "$T/hidden"; do
+    [ "$(cat "$f")" = "$clean" ] || fail "redirect left in $f"
+  done
+  [ -f "$T/released" ] || fail "rootfs view not unmounted"
+) || exit 1
+
+# webOS 3 (lovefilm): Start checks every file exists before overwriting any of them.
+CONFIGS_DIR="$T/lf/conf" PATCHER_RESOURCES_DIR="$T/lf/res"
+mkdir -p "$CONFIGS_DIR" "$PATCHER_RESOURCES_DIR/patch" "$(dirname "$TARGET_CONF_LOVEFILM")" "$(dirname "$TARGET_CHUNK_LOVEFILM")"
+echo ours >"$CONFIGS_DIR/ignition-config.txt"
+echo stock >"$TARGET_CONF_LOVEFILM"; echo stock >"$TARGET_CHUNK_LOVEFILM"
+! ( do_patch_lovefilm ) >/dev/null || fail "lovefilm Start went on without its patched chunk"
+[ "$(cat "$TARGET_CONF_LOVEFILM")" = stock ] || fail "lovefilm config overwritten before the check"
+echo ours >"$PATCHER_RESOURCES_DIR/patch/chunk-0.js"
+( do_patch_lovefilm ) >/dev/null && is_lovefilm_patched || fail "lovefilm not patched"
+[ "$(cat "$TARGET_CHUNK_LOVEFILM.bak")" = stock ] || fail "lovefilm backup missing"
+
 echo "hosts_test: ok"
