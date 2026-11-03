@@ -114,9 +114,14 @@ patch_default_conf && conf_ok || fail "config not patched"
   for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL" "$T/hidden"; do
     printf '%s\n%s\n%s\n' "$clean" "$HOST_ENTRY" "$HOST_ENTRY_V6" >"$f"
   done
-  grep() { if [ "$3" = /proc/mounts ]; then return 0; fi; command grep "$@"; }
-  mount() { [ "$1 $2" = "--bind /" ] || exit 90; mkdir -p "$3/etc"; cp "$T/hidden" "$3/etc/hosts"; }
+  bound=no
+  grep() { if [ "$3" = /proc/mounts ]; then [ "$2" = " /etc/hosts " ] && [ $bound = yes ]; return; fi; command grep "$@"; }
+  mount() { [ "$1 $2" = "--bind /" ] || fail "unexpected mount args: $*"; mkdir -p "$3/etc"; cp "$T/hidden" "$3/etc/hosts"; }
   umount() { cp "$1/etc/hosts" "$T/hidden" && rm -r "$1/etc" && : >"$T/released"; }
+  # No table mounted over /etc/hosts: nothing hidden to clean.
+  unpatch_rootfs_hosts
+  grep -qxF "$HOST_ENTRY" "$T/hidden" || fail "rootfs hosts changed with no bind mount"
+  bound=yes
   unpatch_hosts
   for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL" "$T/hidden"; do
     [ "$(cat "$f")" = "$clean" ] || fail "redirect left in $f"
@@ -128,10 +133,16 @@ patch_default_conf && conf_ok || fail "config not patched"
 CONFIGS_DIR="$T/lf/conf" PATCHER_RESOURCES_DIR="$T/lf/res"
 mkdir -p "$CONFIGS_DIR" "$PATCHER_RESOURCES_DIR/patch" "$(dirname "$TARGET_CONF_LOVEFILM")" "$(dirname "$TARGET_CHUNK_LOVEFILM")"
 echo ours >"$CONFIGS_DIR/ignition-config.txt"
+for missing in "$CONFIGS_DIR/ignition-config.txt" "$PATCHER_RESOURCES_DIR/patch/chunk-0.js" "$TARGET_CONF_LOVEFILM" "$TARGET_CHUNK_LOVEFILM"; do
+  echo ours >"$CONFIGS_DIR/ignition-config.txt"; echo ours >"$PATCHER_RESOURCES_DIR/patch/chunk-0.js"
+  echo stock >"$TARGET_CONF_LOVEFILM"; echo stock >"$TARGET_CHUNK_LOVEFILM"
+  rm "$missing"
+  ! ( do_patch_lovefilm ) >/dev/null || fail "lovefilm Start went on without $missing"
+  for t in "$TARGET_CONF_LOVEFILM" "$TARGET_CHUNK_LOVEFILM"; do
+    [ "$t" = "$missing" ] || [ "$(cat "$t")" = stock ] || fail "$t overwritten before the check"
+  done
+done
 echo stock >"$TARGET_CONF_LOVEFILM"; echo stock >"$TARGET_CHUNK_LOVEFILM"
-! ( do_patch_lovefilm ) >/dev/null || fail "lovefilm Start went on without its patched chunk"
-[ "$(cat "$TARGET_CONF_LOVEFILM")" = stock ] || fail "lovefilm config overwritten before the check"
-echo ours >"$PATCHER_RESOURCES_DIR/patch/chunk-0.js"
 ( do_patch_lovefilm ) >/dev/null && is_lovefilm_patched || fail "lovefilm not patched"
 [ "$(cat "$TARGET_CHUNK_LOVEFILM.bak")" = stock ] || fail "lovefilm backup missing"
 
