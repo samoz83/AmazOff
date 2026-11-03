@@ -83,6 +83,9 @@ do_unpatch >/dev/null
 # Mounted: pin into bin/certs, and leave the upper dir alone (changing it under a mount is undefined).
 mkdir -p "$TARGET_DIR/bin/certs"
 : >"$UPPER_CERT_DIR/ca.0"
+ln -s "$T/planted" "$TARGET_DIR/bin/certs/ca.0"
+! ( patch_cert_pin ) && [ ! -e "$T/planted" ] || fail "pin followed a symlink"
+rm "$TARGET_DIR/bin/certs/ca.0"
 patch_cert_pin && [ -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "CA not pinned in bin/certs"
 do_unpatch >/dev/null
 [ ! -f "$TARGET_DIR/bin/certs/ca.0" ] || fail "Stop left the CA in bin/certs"

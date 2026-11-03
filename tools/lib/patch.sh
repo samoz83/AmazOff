@@ -32,6 +32,8 @@ patch_cert_pin() {
     rm -f "$d/$OLD_CERT_NAME"
     log "Removed old goproxy CA"
   fi
+  # The app's user may be able to write here, and a dangling link would make root's cp create its target.
+  [ -L "$d/$CERT_NAME" ] && { log "WARNING: $d/$CERT_NAME is a symlink, not pinning"; return 1; }
   if [ ! -f "$d/$CERT_NAME" ]; then
     cp "$CERT_DIR/$CERT_NAME" "$d/$CERT_NAME" || { log "WARNING: could not place CA in $d"; return 1; }
     chmod 755 "$d/$CERT_NAME" 2>/dev/null || true

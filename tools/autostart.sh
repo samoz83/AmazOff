@@ -9,7 +9,7 @@ DIR="$(dirname "$(readlink -f $0)")"
 echo $DIR
 . "$DIR/lib/common.sh"
 
-$DIR/patchctl.sh start
+$DIR/patchctl.sh start >/dev/null   # its JSON line repeats the log below in base64
 echo
 cat "$LOG"
 
