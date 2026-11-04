@@ -103,6 +103,16 @@ CONFIGS_DIR="$T/conf"; mkdir -p "$CONFIGS_DIR"; echo ours >"$CONFIGS_DIR/default
 rm -f "$T/default_config.json"; conf_ok || fail "missing config must not count as unpatched"
 echo stock >"$T/default_config.json"; ! conf_ok || fail "stock config counted as patched"
 patch_default_conf && conf_ok || fail "config not patched"
+# A failed backup leaves the config alone, so Stop can still restore the original.
+rm -f "$T/default_config.json.bak"; echo stock >"$T/default_config.json"
+(
+  cp() { : >"$2"; return 1; }   # a full disk leaves a truncated copy
+  ! patch_default_conf || fail "config patched without a backup"
+  [ "$(cat "$T/default_config.json")" = stock ] && [ ! -e "$T/default_config.json.bak" ] ||
+    fail "config changed or truncated backup left"
+  echo '{"disable-ssl-cert":true}' >"$T/default_config.json"
+  patch_default_conf && conf_ok || fail "disable-ssl-cert config kept for want of a backup"
+) || exit 1
 
 # Stop also cleans the rootfs /etc/hosts hidden under a bind-mounted table (unpatch_rootfs_hosts).
 # Fake /proc/mounts, mount and umount; the rest is the real code. Subshell so the fakes don't leak.

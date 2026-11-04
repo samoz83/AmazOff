@@ -55,16 +55,20 @@ patch_lovefilm_chunk(){
 
 patch_default_conf(){
   # Not there while the webOS 11 overlay is unmounted; writing it would land in the bare mountpoint.
-  [ -f "$TARGET_DIR/default_config.json" ] || return 0
-  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null
-  cat "$CONFIGS_DIR/default_config.json" > "$TARGET_DIR/default_config.json"
+  f="$TARGET_DIR/default_config.json"
+  [ -f "$f" ] || return 0
+  if [ ! -f "$f.bak" ] && ! cp "$f" "$f.bak" 2>/dev/null; then
+    rm -f "$f.bak"   # a full disk can leave a truncated copy, which Stop would restore
+    # Stop never restores a disable-ssl-cert config (AmazOff <= 0.2.5 wrote it), so losing it costs nothing.
+    grep -q '"disable-ssl-cert"' "$f" || { log "WARNING: could not back up $f, leaving it unchanged"; return 1; }
+  fi
+  cat "$CONFIGS_DIR/default_config.json" > "$f"
 }
 
 patch_hosts(){
   writable_system_hosts
   patch_hosts_helper "$HOSTS_SYSTEM" && log "Patched system hosts" || log "WARNING: could not write $HOSTS_SYSTEM"
-  patch_hosts_helper "$HOSTS_JAIL"
-  log "Patched jail hosts"
+  patch_hosts_helper "$HOSTS_JAIL" && log "Patched jail hosts" || log "WARNING: could not write $HOSTS_JAIL"
 }
 
 unpatch_hosts(){
