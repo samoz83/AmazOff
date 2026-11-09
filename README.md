@@ -9,10 +9,10 @@
 
 ## Changes since upstream 0.2.3
 
-Version 0.3.1, compared with upstream 0.2.3:
+Version 0.3.2, compared with upstream 0.2.3:
 
 **Supported**
-- Amazon's current player bundle (October 2026), which `onebox1` and `wave1`-`wave3` now all serve. The no-ads patch is built per route and checked by hash.
+- Amazon's current player bundles (November 2026): `wave1`-`wave3` serve one bundle, and `onebox1` (webOS 4.x) serves a newer one. The no-ads patch is built per route and checked by hash.
 - Prime Video app 6.3.42, including blocking its pre-rolls.
 - [Glasshouse](https://github.com/rorygallagher2024/glasshouse) 0.100 or later with its ad blocker on. Glasshouse keeps AmazOff's hosts entry in its table.
 
@@ -20,7 +20,8 @@ Version 0.3.1, compared with upstream 0.2.3:
 - AmazOff now uses its own CA, which is only valid for the player bundle host. The goproxy CA used up to 0.2.3 has a public private key; Start removes it from the Amazon app.
 - AmazOff no longer sets `disable-ssl-cert` in the Amazon app's `default_config.json`. That flag turned off TLS certificate checks for every connection the app made, not only the player bundle. The CA pin is enough, because the app trusts the certificates in `bin/certs`. Start removes the flag, and Stop doesn't restore a backup that contains it.
 - The webOS 3.x (lovefilm) patch no longer adds the goproxy CA; Start and Stop remove the copy older versions added.
-- Stop also removes AmazOff's CA from the Amazon app and restores its `default_config.json`. Before, the app kept trusting the CA after Stop, and the CA's server key ships in every IPK.
+- Stop also removes AmazOff's CA from the Amazon app and restores its `default_config.json`. Before, the app kept trusting the CA after Stop, and the CA's server key ships in every IPK. On webOS 11 with Prime Video closed, Stop removes the CA from the app's overlay instead.
+- Start, the monitor and **Details** need both the `127.0.0.1` and the `::1` hosts lines, and a CA file whose contents match AmazOff's. Before, the `127.0.0.1` line alone counted, and any file with the CA's name did too. From PR #3 by simon-lee-1.
 - If another tool rewrites `/etc/hosts`, the monitor puts AmazOff's entry back, and the service shows *stopped* while the entry is missing.
 - Stop removes the hosts entry, including from the rootfs `/etc/hosts` underneath a bind-mounted table. Before, Glasshouse could copy a stale entry back at boot and break Prime Video after AmazOff was switched off.
 - Start works on TVs with a read-only `/etc/hosts`, such as a C4 on webOS 10.3.1 without Homebrew Channel's "Block system updates". AmazOff mounts a writable copy over it, as that option does. Before, Start failed with "Read-only file system".
@@ -28,7 +29,9 @@ Version 0.3.1, compared with upstream 0.2.3:
 - A toast and a warning in **Details** appear when another hosts entry overrides AmazOff's, for example a hosts list uploaded to Glasshouse that blocks `cloudfront.xp-assets.aiv-cdn.net`.
 - Player analytics calls are no-ops, so telemetry is suppressed without breaking resume position or playback session reporting.
 - On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.
-- With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen.
+- With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen. It leaves Prime Video open if nginx has already served it the patched player, and does nothing after a failed Start.
+- Autostart at boot no longer fails when Prime Video's `bin/certs` folder is missing, as reported in [upstream issue #17](https://github.com/azoffshowy/AmazOff/issues/17). webOS 11 mounts Prime Video's folder as an overlay only while the app runs. Start writes the CA into the overlay's upper layer if it exists. If it doesn't, Start succeeds without the CA and the monitor adds it when Prime Video opens. If the first launch after that still shows ads, restart Prime Video once. The overlay layout comes from [upstream PR #18](https://github.com/azoffshowy/AmazOff/pull/18) by prijkes.
+- Autostart saves its output in `/tmp/patcher/autostart.log`, and **Details** shows it. Before, the next status check erased the log of the boot run, so a failed autostart left no trace.
 
 **Updated**
 - nginx 1.30.6 with OpenSSL 3.5.9, replacing nginx 1.26.0 with OpenSSL 1.1.1w. OpenSSL 1.1.1 has had no free security fixes since September 2023.
@@ -112,4 +115,4 @@ Feel free to PR additional patches.
 
 The player JavaScript is served by Amazon and changes independently of the installed IPK. Amazon serves a different bundle per route (`onebox1` for webOS 4.x, `wave1`-`wave3` for newer webOS; as of October 2026 they all serve the same bundle). Run `development/amazon/setupDev.sh` to download each bundle, apply the structural no-ads transform (`build-patch.js`, which fails if any anchor is missing), and write `resources/amazon/patch/<route>/` with the patched bundle, `manifest.json` and nginx `identity.conf`. `development/amazon/prepareRelease.sh` re-checks the hashes, and you can point it at an unpacked IPK. `development/amazon/hosts_test.sh` tests the hosts-file handling. `development/amazon/checkUpstream.sh` compares the live bundles with the ones the patches were built from; a weekly GitHub Action runs it and opens an issue when Amazon ships a new bundle.
 
-The service reports *running* only while nginx, the monitor, the hosts override and the CA in the Amazon app are all in place (the monitor puts the CA back after an Amazon app update), so a hosts file rewritten by another tool shows up as *stopped*. Another entry for the bundle host (such as a blocklist sinkhole) shows a toast and a warning in **Details**. A request for an unknown route shows a toast, and the request appears in **Details**. On webOS 6.5, restart the TV after the first Start so the cached player bundle is discarded.
+The service reports *running* only while nginx, the monitor, the hosts override and the CA in the Amazon app are all in place (the monitor puts the CA back after an Amazon app update), so a hosts file rewritten by another tool shows up as *stopped*. While Prime Video's `bin/certs` is missing, as on webOS 11 with the app closed, the CA counts as waiting rather than missing, and the monitor adds it when the folder appears. Another entry for the bundle host (such as a blocklist sinkhole) shows a toast and a warning in **Details**. A request for an unknown route shows a toast, and the request appears in **Details**. On webOS 6.5, restart the TV after the first Start so the cached player bundle is discarded.

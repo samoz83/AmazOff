@@ -10,22 +10,36 @@ HOSTS_JAIL="/mnt/lg/user/var/palm/jail/$TARGET_APP_NAME/etc/hosts"
 HOSTS_SYSTEM="/etc/hosts"
 HOST_ENTRY="127.0.0.1 cloudfront.xp-assets.aiv-cdn.net"
 HOST_ENTRY_V6="::1 cloudfront.xp-assets.aiv-cdn.net"
+# webOS 11 mounts the app as an overlay only while it runs, and files added to it persist in this upper
+# layer. The path comes from upstream PR #18, seen on one webOS 11.2 TV. Code that uses it checks it exists.
+UPPER_CERT_DIR="/media/data/data/$TARGET_APP_NAME/bin/certs"
 
+# True when there is nowhere to pin the CA yet. bin/certs is missing while the webOS 11 overlay is
+# unmounted, for example at boot, and during an app update. The monitor pins the CA once it's back.
+cert_deferred() {
+  [ ! -d "$TARGET_CERT_DIR" ] && [ ! -d "$UPPER_CERT_DIR" ]
+}
+
+# Returns 1 only when pinning fails. With nowhere to pin yet it returns 0, so Start goes on and the monitor pins later.
 patch_cert_pin() {
-  if [ -d  $TARGET_CERT_DIR ]; then
-    if [ -f "$TARGET_CERT_DIR/$OLD_CERT_NAME" ]; then
-      rm -f "$TARGET_CERT_DIR/$OLD_CERT_NAME"
-      log "Removed old goproxy CA"
-    fi
-    if [ ! -f "$TARGET_CERT_DIR/$CERT_NAME" ]; then
-      cp "$CERT_DIR/$CERT_NAME" "$TARGET_CERT_DIR/$CERT_NAME"
-      chmod 755 "$TARGET_CERT_DIR/$CERT_NAME" 2>/dev/null || true
-      log "Placed CA cert"
-    else
-      log "CA already in place"
-    fi
+  d="$TARGET_CERT_DIR"
+  if [ ! -d "$d" ]; then
+    # The kernel allows changes to an overlay's upper layer while it's unmounted.
+    [ -d "$UPPER_CERT_DIR" ] || { log "CA pin deferred: $TARGET_CERT_DIR not mounted; the monitor adds it when Prime Video opens"; return 0; }
+    d="$UPPER_CERT_DIR"
+  fi
+  if [ -f "$d/$OLD_CERT_NAME" ]; then
+    rm -f "$d/$OLD_CERT_NAME"
+    log "Removed old goproxy CA"
+  fi
+  # The app's user may be able to write here, and a dangling link would make root's cp create its target.
+  [ -L "$d/$CERT_NAME" ] && { log "WARNING: $d/$CERT_NAME is a symlink, not pinning"; return 1; }
+  if ! cmp -s "$d/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; then
+    cp "$CERT_DIR/$CERT_NAME" "$d/$CERT_NAME" || { log "WARNING: could not place CA in $d"; return 1; }
+    chmod 755 "$d/$CERT_NAME" 2>/dev/null || true
+    log "Placed CA cert in $d"
   else
-    die "No cert directory found!"
+    log "CA already in place"
   fi
 }
 
@@ -40,15 +54,21 @@ patch_lovefilm_chunk(){
 }
 
 patch_default_conf(){
-  [ -f "$TARGET_DIR/default_config.json.bak" ] || cp "$TARGET_DIR/default_config.json" "$TARGET_DIR/default_config.json.bak" 2>/dev/null
-  cat "$CONFIGS_DIR/default_config.json" > "$TARGET_DIR/default_config.json"
+  # Not there while the webOS 11 overlay is unmounted; writing it would land in the bare mountpoint.
+  f="$TARGET_DIR/default_config.json"
+  [ -f "$f" ] || return 0
+  if [ ! -f "$f.bak" ] && ! cp "$f" "$f.bak" 2>/dev/null; then
+    rm -f "$f.bak"   # a full disk can leave a truncated copy, which Stop would restore
+    # Stop never restores a disable-ssl-cert config (AmazOff <= 0.2.5 wrote it), so losing it costs nothing.
+    grep -q '"disable-ssl-cert"' "$f" || { log "WARNING: could not back up $f, leaving it unchanged"; return 1; }
+  fi
+  cat "$CONFIGS_DIR/default_config.json" > "$f"
 }
 
 patch_hosts(){
   writable_system_hosts
   patch_hosts_helper "$HOSTS_SYSTEM" && log "Patched system hosts" || log "WARNING: could not write $HOSTS_SYSTEM"
-  patch_hosts_helper "$HOSTS_JAIL"
-  log "Patched jail hosts"
+  patch_hosts_helper "$HOSTS_JAIL" && log "Patched jail hosts" || log "WARNING: could not write $HOSTS_JAIL"
 }
 
 unpatch_hosts(){
@@ -120,12 +140,27 @@ manifest_field() {
 
 # An Amazon app update replaces bin/certs; without the pin, TLS to nginx fails.
 cert_pinned() {
-  [ -f "$TARGET_CERT_DIR/$CERT_NAME" ]
+  cmp -s "$TARGET_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME" ||
+    { [ ! -d "$TARGET_CERT_DIR" ] && cmp -s "$UPPER_CERT_DIR/$CERT_NAME" "$CERT_DIR/$CERT_NAME"; }
+}
+
+# Our config, or none while the webOS 11 overlay is unmounted. It only sets the log level, so the
+# running state ignores it, but it replaces an upstream config with disable-ssl-cert.
+conf_ok() {
+  [ ! -f "$TARGET_DIR/default_config.json" ] || cmp -s "$TARGET_DIR/default_config.json" "$CONFIGS_DIR/default_config.json"
+}
+
+# For the running state: pinned, or waiting for bin/certs, which the monitor handles.
+cert_ok() {
+  cert_pinned || cert_deferred
 }
 
 # Another hosts manager (e.g. an ad blackhole tool) can rewrite these files and drop our entry.
+# Without the ::1 line, an IPv6 lookup can still reach the real CDN.
 hosts_patched() {
-  grep -qxF "$HOST_ENTRY" "$HOSTS_SYSTEM" 2>/dev/null && grep -qxF "$HOST_ENTRY" "$HOSTS_JAIL" 2>/dev/null
+  for f in "$HOSTS_SYSTEM" "$HOSTS_JAIL"; do
+    grep -qxF "$HOST_ENTRY" "$f" 2>/dev/null && grep -qxF "$HOST_ENTRY_V6" "$f" 2>/dev/null || return 1
+  done
 }
 
 # Lines not ours that also map our host, e.g. a Glasshouse uploaded blocklist sinkholing it.
@@ -152,7 +187,7 @@ do_patch() {
   require_root
   log "patching target=$TARGET_DIR"
   patch_default_conf
-  patch_cert_pin
+  patch_cert_pin || return 1
   patch_hosts
   warn_hosts_conflicts && toast "AmazOff: blocked by another hosts entry, see Details"
   log "Successfully patched"
@@ -204,6 +239,8 @@ do_unpatch() {
   require_root
   log "unpatch started: target=$TARGET_DIR"
   rm -f "$TARGET_CERT_DIR/$CERT_NAME" "$TARGET_CERT_DIR/$OLD_CERT_NAME" 2>/dev/null || true
+  # Only while unmounted: changing the upper layer under a mounted overlay is undefined.
+  [ -d "$TARGET_CERT_DIR" ] || rm -f "$UPPER_CERT_DIR/$CERT_NAME" "$UPPER_CERT_DIR/$OLD_CERT_NAME" 2>/dev/null
   log "removed Cert pinning"
   if [ -f "$TARGET_DIR/default_config.json.bak" ]; then
     # AmazOff <= 0.2.5 wrote disable-ssl-cert (turns off TLS checks app-wide); a .bak taken after that keeps it.
@@ -227,7 +264,18 @@ patch_status_log() {
     [ -f "$m" ] && log "$(manifest_field "$m" route): source $(manifest_field "$m" sourceSha256) patched $(manifest_field "$m" patchedSha256)"
   done
   if [ "$TARGET_APP_NAME" = "$APP_NAME_AMAZON" ]; then
-    cert_pinned && log "CA in place" || log "WARNING: CA missing from the Amazon app (app updated?). Press Start again."
+    if cert_pinned; then
+      log "CA in place"
+    elif cert_deferred; then
+      log "CA waiting: $TARGET_CERT_DIR isn't there (webOS 11 with Prime Video closed, or an app update). The monitor adds it when it appears."
+    else
+      log "WARNING: CA missing or out of date in the Amazon app (app updated?). Press Start again."
+    fi
+  fi
+  if [ -f "$BASE/autostart.log" ]; then
+    log "--------"
+    log "Last autostart at boot:
+$(cat "$BASE/autostart.log")"
   fi
   hosts_patched || log "WARNING: hosts override missing; another tool may have rewritten hosts. Press Start again."
   warn_hosts_conflicts

@@ -63,6 +63,12 @@ patch(
   new RegExp(`pauseBehavior:(${ID})\\((${ID})\\),playbackResourceExpirationTimeMs:`),
   "pauseBehavior:__HOMEBREW_NOADS?void 0:$1($2),playbackResourceExpirationTimeMs:"
 );
+// Newer MediaPlayer stack: the Feature metadata mapper reads cuepoints.pauseBehavior itself.
+patch(
+  "new-stack pause behavior",
+  new RegExp(`(pauseBehavior:function\\(${ID}\\)\\{)(?=var ${ID}=${ID}\\.PlaybackResourceUtils\\.valueOrUndefined\\(${ID}\\.playbackUrls\\);if\\(null==${ID}\\)\\{var ${ID}=${ID}\\.PlaybackResourceUtils\\.valueOrUndefined\\(${ID}\\.playlistedPlaybackUrls\\))`),
+  "$1if(__HOMEBREW_NOADS)return;"
+);
 
 // Cuepoint / VMAP / DASH event-stream ad breaks.
 patch(
@@ -76,6 +82,16 @@ patch(
   "unresolved content source",
   /case"Remote":(?=var [^;]{0,200}?this\.adBreakConfigBuilder\.build\()/,
   'case"Remote":if(__HOMEBREW_NOADS)break;'
+);
+
+// Live pre-rolls: the server stitches a PreRoll_N period into the live stream. With
+// showLivePreRolls on, the player starts inside it and blocks Go-to-Live until it has played.
+// Treat the flag as off, a state Amazon supports; the player then starts as it did before this bundle.
+patch(
+  "live pre-rolls",
+  new RegExp(`(!0===${ID}(?:\\.${ID})*\\.showLivePreRolls\\.enabled)`),
+  "$1&&!__HOMEBREW_NOADS",
+  5
 );
 
 // Telemetry: no-op the analytics sinks only. Every one is fire-and-forget (callers
@@ -92,12 +108,19 @@ noop("playback diagnostics", /(\.prototype\.batchMessage=freeOnUnref\(function\(
 // Ad beacons: should never fire once ads are filtered; belt and braces.
 patch("ad beacons", /(\.prototype\.send=freeOnUnref\(function\(e,t,n\)\{if\(void 0===t&&\(t=\{\}\),)this\.enableEventReporting(?=\)\{for\(var r=0)/, "$1!1");
 noop("ad audit pings", /(\.prototype\.make(?:Direct)?AuditPingRequest=freeOnUnref\(function\([\w$]+,[\w$]+\)\{)/, 2);
+// Newer MediaPlayer stack: AdBeaconClient.dispatch sends every audit ping, ad measurement and
+// ad interaction beacon. Audit pings fire on every playback, ads or not. Callers only log the outcome.
+patch(
+  "ad beacon client",
+  new RegExp(`(\\{key:"dispatch",value:function\\(${ID},${ID}\\)\\{)(?=var ${ID},${ID}=this,${ID}=${ID}\\.url,${ID}="UnknownError")`),
+  "$1if(__HOMEBREW_NOADS)return;"
+);
 
 new Function(source); // syntax check
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "ATVUnfPlayerBundle.js"), source);
 const manifest = {
-  patchRevision: 3,
+  patchRevision: 5,
   route,
   sourceUrl,
   sourceSha256,

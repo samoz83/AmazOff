@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check shell syntax
+        run: for f in tools/*.sh tools/lib/*.sh; do sh -n "$f"; done
+
+      # Ubuntu's sh is dash. The TV runs busybox ash, so run the tests in that too, not as root,
+      # because root ignores chmod and the read-only hosts cases would be skipped.
+      - name: Test the hosts and CA helpers
+        run: |
+          sh development/amazon/hosts_test.sh
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/r:ro" -w /r busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 \
+            sh development/amazon/hosts_test.sh
+
+      - name: Check the patched bundle hashes
+        run: sh development/amazon/prepareRelease.sh
