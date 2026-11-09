@@ -9,10 +9,10 @@
 
 ## Changes since upstream 0.2.3
 
-Version 0.3.2, compared with upstream 0.2.3:
+Version 0.3.3, compared with upstream 0.2.3:
 
 **Supported**
-- Amazon's current player bundles (November 2026): `wave1`-`wave3` serve one bundle, and `onebox1` (webOS 4.x) serves a newer one. The no-ads patch is built per route and checked by hash.
+- Amazon's current player bundle (November 2026), which `onebox1` (webOS 4.x) and `wave1`-`wave3` all serve. The no-ads patch is built per route and checked by hash.
 - Prime Video app 6.3.42, including blocking its pre-rolls.
 - [Glasshouse](https://github.com/rorygallagher2024/glasshouse) 0.100 or later with its ad blocker on. Glasshouse keeps AmazOff's hosts entry in its table.
 
@@ -31,6 +31,8 @@ Version 0.3.2, compared with upstream 0.2.3:
 - On firmware without `cksum` (seen on webOS 5), the monitor uses `md5sum` to spot hosts file changes. Before, it logged an error every 10 seconds and rescanned the hosts files each time.
 - With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen. It leaves Prime Video open if nginx has already served it the patched player, and does nothing after a failed Start.
 - Autostart at boot no longer fails when Prime Video's `bin/certs` folder is missing, as reported in [upstream issue #17](https://github.com/azoffshowy/AmazOff/issues/17). webOS 11 mounts Prime Video's folder as an overlay only while the app runs. Start writes the CA into the overlay's upper layer if it exists. If it doesn't, Start succeeds without the CA and the monitor adds it when Prime Video opens. If the first launch after that still shows ads, restart Prime Video once. The overlay layout comes from [upstream PR #18](https://github.com/azoffshowy/AmazOff/pull/18) by prijkes.
+- If Start can't back up Prime Video's `default_config.json`, for example on a full disk, it leaves the file alone and deletes any partial backup. Before, it could patch the config anyway, and Stop would restore a truncated copy.
+- The log and the monitor report a failed hosts write as a failure. Before, they logged success either way. Reported in PR #3 by simon-lee-1.
 - Autostart saves its output in `/tmp/patcher/autostart.log`, and **Details** shows it. Before, the next status check erased the log of the boot run, so a failed autostart left no trace.
 
 **Updated**
