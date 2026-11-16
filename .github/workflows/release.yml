@@ -38,4 +38,4 @@ jobs:
           hash="$(sha256sum "development/$ipk" | cut -d' ' -f1)"
           printf 'Write the release notes here.\n\nSHA-256 `%s`: `%s`\n' "$ipk" "$hash" > notes.md
           gh release create "$GITHUB_REF_NAME" --draft --title "Version ${GITHUB_REF_NAME#v_}" --notes-file notes.md \
-            "development/$ipk" development/org.webosbrew.manifest.json
+            "development/$ipk" development/org.webosbrew.manifest.json development/apps.json
