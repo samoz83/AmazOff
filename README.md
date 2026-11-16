@@ -9,10 +9,10 @@
 
 ## Changes since upstream 0.2.3
 
-Version 0.3.3, compared with upstream 0.2.3:
+Version 0.3.4, compared with upstream 0.2.3:
 
 **Supported**
-- Amazon's current player bundle (November 2026), which `onebox1` (webOS 4.x) and `wave1`-`wave3` all serve. The no-ads patch is built per route and checked by hash.
+- Amazon's current player bundles (mid-November 2026). `onebox1` (webOS 4.x), `wave1` and `wave2` serve one bundle and `wave3` serves another. The no-ads patch is built per route and checked by hash.
 - Prime Video app 6.3.42, including blocking its pre-rolls.
 - [Glasshouse](https://github.com/rorygallagher2024/glasshouse) 0.100 or later with its ad blocker on. Glasshouse keeps AmazOff's hosts entry in its table.
 
@@ -115,6 +115,6 @@ Feel free to PR additional patches.
 
 ## Updating the Amazon player bundle
 
-The player JavaScript is served by Amazon and changes independently of the installed IPK. Amazon serves a different bundle per route (`onebox1` for webOS 4.x, `wave1`-`wave3` for newer webOS; as of October 2026 they all serve the same bundle). Run `development/amazon/setupDev.sh` to download each bundle, apply the structural no-ads transform (`build-patch.js`, which fails if any anchor is missing), and write `resources/amazon/patch/<route>/` with the patched bundle, `manifest.json` and nginx `identity.conf`. `development/amazon/prepareRelease.sh` re-checks the hashes, and you can point it at an unpacked IPK. `development/amazon/hosts_test.sh` tests the hosts-file handling. `development/amazon/checkUpstream.sh` compares the live bundles with the ones the patches were built from; a weekly GitHub Action runs it and opens an issue when Amazon ships a new bundle.
+The player JavaScript is served by Amazon and changes independently of the installed IPK. Amazon serves a different bundle per route (`onebox1` for webOS 4.x, `wave1`-`wave3` for newer webOS; as of November 2026 `wave3` serves a different bundle from the others). Run `development/amazon/setupDev.sh` to download each bundle, apply the structural no-ads transform (`build-patch.js`, which fails if any anchor is missing), and write `resources/amazon/patch/<route>/` with the patched bundle, `manifest.json` and nginx `identity.conf`. `development/amazon/prepareRelease.sh` re-checks the hashes, and you can point it at an unpacked IPK. `development/amazon/hosts_test.sh` tests the hosts-file handling. `development/amazon/checkUpstream.sh` compares the live bundles with the ones the patches were built from; a weekly GitHub Action runs it and opens an issue when Amazon ships a new bundle.
 
 The service reports *running* only while nginx, the monitor, the hosts override and the CA in the Amazon app are all in place (the monitor puts the CA back after an Amazon app update), so a hosts file rewritten by another tool shows up as *stopped*. While Prime Video's `bin/certs` is missing, as on webOS 11 with the app closed, the CA counts as waiting rather than missing, and the monitor adds it when the folder appears. Another entry for the bundle host (such as a blocklist sinkhole) shows a toast and a warning in **Details**. A request for an unknown route shows a toast, and the request appears in **Details**. On webOS 6.5, restart the TV after the first Start so the cached player bundle is discarded.
