@@ -99,7 +99,8 @@ patch(
 // licence calls are deliberately untouched: resume and playback depend on them.
 const noop = (label, expression, expected = 1) => patch(label, expression, "$1return;", expected);
 // Media events (QoS, errors, custom metadata/metrics): HTTP and TelemetrySdk reporters.
-noop("media events", /(\.prototype\.enqueueMediaEvents=freeOnUnref\(function\(e\)\{)(?=this\.applyDeferredEventTimestamp\(e\))/, 2);
+// onebox1 (2cc31669) no longer calls applyDeferredEventTimestamp first, so anchor on the name alone.
+noop("media events", /(\.prototype\.enqueueMediaEvents=freeOnUnref\(function\(e\)\{)/, 2);
 noop("telemetry queue", /(\.prototype\.reportEvent=freeOnUnref\(function\(e\)\{var t=this;)(?=this\.queue\.add\(e\),this\.isQueueAtMaxDepth\(\))/);
 noop("minerva metrics", /(\.prototype\.recordMetric=freeOnUnref\(function\(e\)\{)(?=if\(null!=this\.minervaClient\)try\{this\.minervaClient\.record\(e\))/);
 noop("minerva kpi upload", /(\.prototype\.uploadMinervaKpiMetrics=freeOnUnref\(function\(\)\{)/);
@@ -120,7 +121,7 @@ new Function(source); // syntax check
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, "ATVUnfPlayerBundle.js"), source);
 const manifest = {
-  patchRevision: 5,
+  patchRevision: 6,
   route,
   sourceUrl,
   sourceSha256,
