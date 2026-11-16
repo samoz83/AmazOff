@@ -1,3 +1,4 @@
 .DS_Store
 development/*.ipk
 development/org.webosbrew.manifest.json
+development/apps.json

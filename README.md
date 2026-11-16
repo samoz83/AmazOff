@@ -68,7 +68,7 @@ On WebOS prior to 4.0 the No-Ads patch only removes loaded Ads. Pre-Rolls from p
 
 Preferred installation methods:
 
-- In Homebrew Channel, open **Settings**, choose **Add repository** and enter `https://raw.githubusercontent.com/samoz83/AmazOff/master/apps.json`. AmazOff then appears in the app list, and its details page shows **Update** when a new release is out. The default webosbrew repository also lists AmazOff, but that entry installs upstream 0.2.3. Install the entry whose details page says "from https://raw.githubusercontent.com/...".
+- In Homebrew Channel, open **Settings**, choose **Add repository** and enter `https://github.com/samoz83/AmazOff/releases/latest/download/apps.json`. Glasshouse accepts the same URL as an extra repository. The repository always lists the latest release. The default webosbrew repository also lists AmazOff, but that entry installs upstream 0.2.3, so install the entry from this repository.
 - Install the latest `.ipk` from [Releases](https://github.com/samoz83/AmazOff/releases) using **[Device Manager for webOS](https://github.com/webosbrew/dev-manager-desktop)**, or
 - If you use [Glasshouse](https://github.com/rorygallagher2024/glasshouse), install it from the **Apps** tab under **Install app from a URL or file**, by uploading the `.ipk` or pasting the `.ipk` link from Releases. That section stays off until you switch it on there.
 
