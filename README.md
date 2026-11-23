@@ -9,7 +9,7 @@
 
 ## Changes since upstream 0.2.3
 
-Version 0.3.5, compared with upstream 0.2.3:
+Version 0.3.6, compared with upstream 0.2.3:
 
 **Supported**
 - Amazon's current player bundles (mid-November 2026). `onebox1` (webOS 4.x), `wave1` and `wave3` each serve their own bundle, and `wave2` serves the same one as `wave1`. The no-ads patch is built per route and checked by hash.
