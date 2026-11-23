@@ -32,6 +32,7 @@ Version 0.3.5, compared with upstream 0.2.3:
 - With autostart on, Prime Video opened before AmazOff finished starting kept the unpatched player until it was restarted. Autostart now closes Prime Video if it's in the background, or shows a toast asking you to restart it if it's on screen. It leaves Prime Video open if nginx has already served it the patched player, and does nothing after a failed Start.
 - Autostart at boot no longer fails when Prime Video's `bin/certs` folder is missing, as reported in [upstream issue #17](https://github.com/azoffshowy/AmazOff/issues/17). webOS 11 mounts Prime Video's folder as an overlay only while the app runs. Start writes the CA into the overlay's upper layer if it exists. If it doesn't, Start succeeds without the CA and the monitor adds it when Prime Video opens. If the first launch after that still shows ads, restart Prime Video once. The overlay layout comes from [upstream PR #18](https://github.com/azoffshowy/AmazOff/pull/18) by prijkes.
 - If Start can't back up Prime Video's `default_config.json`, for example on a full disk, it leaves the file alone and deletes any partial backup. Before, it could patch the config anyway, and Stop would restore a truncated copy.
+- Start, Stop and **Details** work on firmware that enforces Luna service API group permissions, such as webOS 11.2. AmazOff now declares Homebrew Channel's service group in `appinfo.json`. Before, these buttons failed with `Denied method call "exec" for category "/"`. From [upstream PR #19](https://github.com/azoffshowy/AmazOff/pull/19) by hs3387.
 - The log and the monitor report a failed hosts write as a failure. Before, they logged success either way. Reported in PR #3 by simon-lee-1.
 - Autostart saves its output in `/tmp/patcher/autostart.log`, and **Details** shows it. Before, the next status check erased the log of the boot run, so a failed autostart left no trace.
 
@@ -51,7 +52,7 @@ AmazOff requires **[Homebrew Channel](https://www.webosbrew.org/)** to be presen
 ## Status
 
 - **Development stage:** early / experimental  
-- **Tested on:** webOS 3.x, webOS 4.x, webOS 5.x, webOS 6.5, webOS 9.x, webOS 10.x
+- **Tested on:** webOS 3.x, webOS 4.x, webOS 5.x, webOS 6.5.3, webOS 9.x, webOS 10.x
 - **Amazon app variants:** 4.1.15, 4.5.25, 5.3.10, 6.3.38, 6.3.42, 1.1.121
 
 ## WebOS < 4.0
